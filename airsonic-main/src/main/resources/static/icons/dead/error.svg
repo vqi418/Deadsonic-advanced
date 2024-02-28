@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="24"
+   height="24"
+   viewBox="0 0 24 24"
+   fill="none"
+   stroke="#cdcdcd"
+   stroke-width="2"
+   stroke-linecap="round"
+   stroke-linejoin="round"
+   class="feather feather-alert-octagon"
+   version="1.1"
+   id="svg3761"
+   sodipodi:docname="error.svg"
+   inkscape:version="1.1.2 (0a00cf5339, 2022-02-04)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs3765" />
+  <sodipodi:namedview
+     id="namedview3763"
+     pagecolor="#505050"
+     bordercolor="#ffffff"
+     borderopacity="1"
+     inkscape:pageshadow="0"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="1"
+     showgrid="false"
+     inkscape:zoom="19.333333"
+     inkscape:cx="12"
+     inkscape:cy="12"
+     inkscape:window-width="1366"
+     inkscape:window-height="697"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg3761" />
+  <polygon
+     points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"
+     id="polygon3755"
+     style="stroke:#ff0000" />
+  <line
+     x1="12"
+     y1="8"
+     x2="12"
+     y2="12"
+     id="line3757"
+     style="stroke:#ff0000" />
+  <line
+     x1="12"
+     y1="16"
+     x2="12"
+     y2="16"
+     id="line3759"
+     style="stroke:#ff0000" />
+</svg>

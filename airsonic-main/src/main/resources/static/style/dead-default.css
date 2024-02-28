@@ -1,0 +1,347 @@
+
+/***************************************************************************************
+ * The rest of the CSS is typically not changed in other themes (but not necessarily so).
+ ***************************************************************************************/
+
+body {
+    padding:0;
+    border:0;
+    margin:0.75em;
+    font-family: Verdana, Tahoma, Geneva, arial, sans-serif;
+    font-size: 10.5pt;
+    line-height: 1.5em;
+}
+
+p {
+    padding:0;
+    border:0;
+    margin:0 0 1em 0;
+}
+
+.dense {
+    white-space: nowrap;
+    margin: 0;
+    line-height: 1.5em
+}
+
+.truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+h1 {
+    white-space: nowrap;
+    font-size: 150%;
+    padding: 0;
+    border: 0;
+    margin: 0;
+}
+
+h2 {
+    white-space: nowrap;
+    font-size: 108%;
+    margin: 0.8em 0 0.2em 0;
+}
+
+form {
+    font-size: 100%;
+    line-height: 140%;
+    padding: 0;
+    border: 0;
+    margin: 0;
+}
+
+input, textarea, select, button {
+    font-size: 90%;
+    padding: 3px;
+    border-radius: 3px;
+    border: 1px solid #e90b0b;
+    vertical-align: middle;
+}
+
+input::before, textarea::before, select::before, button::before {
+    color: #be6c09;
+}
+
+input[type=submit], input[type=button], button {
+    background: transparent;
+    padding-left: 1em;
+    padding-right: 1em;
+    color: #ffe62c;
+    font-family: serif;
+}
+
+input[type=submit]:hover, input[type=button]:hover, button:hover {
+    text-decoration: none;
+    background: transparent;
+    padding-left: 1em;
+    padding-right: 1em;
+    color: #be6c09;
+    font-family: serif;
+}
+
+input[type=submit]:active, input[type=button]:active, button:active {
+    background: transparent;
+    padding-left: 1em;
+    padding-right: 1em;
+    color: #be6c09;
+    font-family: serif;
+}
+
+input[type=checkbox] {
+  border: 0;
+}
+
+input:hover, textarea:hover, select:hover {
+    border: 1px solid darkgray;
+}
+
+label {
+    font-size: 100%;
+    line-height: 140%;
+}
+
+table {
+    font-size: 100%;
+    line-height: 140%;
+    padding: 0;
+    border: 0;
+    margin: 0 0 0.4em 0;
+}
+
+
+/* Table with some white space above it.*/
+table.indent {
+    margin: 1em 0 0.4em 0;
+}
+
+table.music {
+    line-height: 100%;
+    border-collapse:collapse;
+    white-space:nowrap;
+    width: 100%;
+}
+
+th.fit, td.fit {
+    width:1px;
+    padding-left:4px !important;
+    padding-right:4px !important;
+}
+
+th.truncate, td.truncate {
+    max-width:50px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space: nowrap;
+    padding-left:10px;
+    padding-right:10px;
+}
+
+th.rightalign, td.rightalign {
+    text-align: right;
+    padding-right: 20px;
+}
+
+th.centeralign, td.centeralign {
+    text-align: center;
+}
+
+a {
+    font-size: 100%;
+    text-decoration: inherit;
+}
+
+img {
+    display: block;
+    border-style: none;
+    border: none;
+    margin-left: auto;
+    margin-right: auto;
+    padding: 0;
+    vertical-align: middle;
+}
+
+.monospace {
+  font-family: monospace;
+}
+
+.dropshadow {
+    box-shadow: 2px 2px 10px #333333;
+}
+
+.shadow {
+    box-shadow: 0 0 20px 3px #555555;
+}
+
+.coverart {
+    background-color: #000;
+    color: #be6c09;
+    border-radius:2px;
+}
+
+.coverart .caption1 {
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    padding:6px 8px 4px 8px;
+    line-height: 100%;
+    font-weight: 300;
+}
+
+.coverart .caption1 a:link, .coverart .caption1 a:visited  {
+    color: #be6c09;
+}
+
+.coverart .caption2 {
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    padding:0px 8px 5px 8px;
+    font-size: 90%;
+    color: #aaaaaa;
+    line-height: 100%;
+    font-weight: 300;
+}
+
+.coverart .caption3 {
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    padding:0px 8px 5px 8px;
+    font-size: 90%;
+    color: #bad470;
+    line-height: 100%;
+    font-weight: 300;
+}
+
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(128, 128, 128, 0.5);
+    border-radius: 6px;
+}
+
+.header, .headerSelected {
+    padding-left: 0.25em;
+    padding-right: 0.25em;
+    vertical-align: middle;
+}
+
+.similar-artist-divider {
+    padding-left: 0.5em;
+    padding-right: 0.5em;
+}
+
+.detail {
+    white-space: nowrap;
+    font-size: 90%;
+    line-height: 1.25em;
+}
+
+.songTitle {
+    font-style: italic;
+}
+
+.topHeader, .topHeader a {
+    font-size: 102%;
+    padding: 0.15em 0 0 0;
+    margin: 0;
+    border: 0;
+    white-space: nowrap;
+}
+
+.back, .forward {
+    background-position:center left;
+    background-repeat:no-repeat;
+    padding-left: 12px;
+    line-height: 16px;
+}
+
+.back {
+    background-image:url("../icons/default_light/back.png");
+}
+
+.forward:before {
+    background-image:url("../icons/default_light/chevron.svg");
+    background-size: 16px 16px;
+    width: 16px;
+    height: 16px;
+    content: "";
+    display: inline-block;
+    vertical-align: -20%;
+}
+
+.albumComment {
+    width: 50em;
+    font-size: 90%;
+    line-height: 1.4em;
+    padding-top: 0.25em;
+}
+
+.albumThumb {
+    display:inline-block;
+    vertical-align: top;
+    padding-bottom: 20px;
+    padding-right: 20px;
+}
+
+.albumOverflowButton {
+    display:inline-block;
+    cursor:pointer;
+    vertical-align:bottom;
+    margin-left:15px;
+    margin-bottom:20px
+}
+
+.log {
+    white-space: nowrap;
+    font-size: 90%;
+    line-height: 1em;
+}
+
+/* Table with simple lines between the cells. */
+.ruleTable {
+    border-collapse: collapse;
+}
+
+.ruleTableHeader, .ruleTableCell {
+    margin: 5px;
+    padding: 5px;
+}
+
+.ruleTableHeader {
+    font-weight: bold;
+}
+
+.context-menu-item {
+    color: #be6c09;
+}
+
+.playqueue-controlbar {
+    width: 100%;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    z-index: 1;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+}
+
+.tableSpacer {
+    height: 1em;
+}
+
+/* Blur effect */
+.blur {
+  color: transparent;
+  text-shadow: 0 0 12px rgba(0, 0, 0, 0.7);
+}
+
+/* Javascript-zoom related styles */
+#zoom { position: absolute; display: none; z-index: 499; -webkit-box-shadow: 0px 5px 25px #000; -moz-box-shadow: 0px 5px 25px #000; box-shadow: 0px 5px 25px #000; }
+#zoom_img { display: block; cursor: pointer; width: 100%; border: 0; margin: 0; padding: 0; }
+#zoom_close { position: absolute; display: none; cursor: pointer; left: -15px; top: -15px; width: 30px; height: 30px; background: url(../script/closebox.png) no-repeat; }
+#zoom_spin { position: absolute; display: none; z-index: 525; width: 50px; height: 50px; background: url(../script/spin.png) no-repeat; }
