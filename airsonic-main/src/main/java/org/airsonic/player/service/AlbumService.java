@@ -375,7 +375,8 @@ public class AlbumService {
      */
     @Transactional
     public Album save(Album album) {
-        return albumRepository.save(album);
+        albumRepository.save(album);
+        return album;
     }
 
 }

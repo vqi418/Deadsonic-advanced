@@ -200,7 +200,8 @@ public class ArtistService {
      */
     @Transactional
     public Artist save(Artist artist) {
-        return artistRepository.save(artist);
+        artistRepository.save(artist);
+        return artist;
     }
 
 }
