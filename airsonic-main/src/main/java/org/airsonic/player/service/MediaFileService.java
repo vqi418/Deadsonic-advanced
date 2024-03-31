@@ -37,6 +37,7 @@ import org.airsonic.player.repository.MediaFileSpecifications;
 import org.airsonic.player.repository.MusicFileInfoRepository;
 import org.airsonic.player.repository.OffsetBasedPageRequest;
 import org.airsonic.player.repository.StarredMediaFileRepository;
+import org.airsonic.player.service.cache.MediaFileCache;
 import org.airsonic.player.service.metadata.JaudiotaggerParser;
 import org.airsonic.player.service.metadata.MetaData;
 import org.airsonic.player.service.metadata.MetaDataParser;
@@ -53,13 +54,11 @@ import org.digitalmediaserver.cuelib.io.FLACReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
-import org.springframework.cache.annotation.Caching;
 import org.springframework.context.MessageSource;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Sort.Direction;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -120,8 +119,8 @@ public class MediaFileService {
     private MusicFileInfoRepository musicFileInfoRepository;
     @Autowired
     private GenreRepository genreRepository;
-
-    private boolean memoryCacheEnabled = true;
+    @Autowired
+    private MediaFileCache mediaFileCache;
 
     public MediaFile getMediaFile(String pathName) {
         return getMediaFile(Paths.get(pathName));
@@ -161,32 +160,54 @@ public class MediaFileService {
         return getMediaFile(relativePath, folder, MediaFile.NOT_INDEXED, minimizeDiskAccess);
     }
 
-    @Cacheable(cacheNames = "mediaFilePathCache", key = "#relativePath.toString().concat('-').concat(#folder.id).concat('-').concat(#startPosition == null ? '' : #startPosition.toString())", condition = "#root.target.memoryCacheEnabled", unless = "#result == null")
     public MediaFile getMediaFile(Path relativePath, MusicFolder folder, Double startPosition, boolean minimizeDiskAccess) {
+
+        if (folder == null || relativePath == null) {
+            return null;
+        }
+        MediaFile result = mediaFileCache.getMediaFileByPath(relativePath, folder, startPosition);
+
         // Look in database.
-        return mediaFileRepository.findByPathAndFolderAndStartPosition(relativePath.toString(), folder, startPosition)
-            .map(file -> checkLastModified(file, minimizeDiskAccess))
-            .orElseGet(() -> {
-                if (!Files.exists(folder.getPath().resolve(relativePath))) {
-                    return null;
-                }
-                if (startPosition > MediaFile.NOT_INDEXED) {
-                    return null;
-                }
-                // Not found in database, must read from disk.
-                MediaFile mediaFile = createMediaFileByFile(relativePath, folder);
-                // Put in database.
-                if (mediaFile != null) {
-                    updateMediaFile(mediaFile);
-                }
-                return mediaFile;
-            });
+        if (result == null) {
+        // Look in database.
+            result = mediaFileRepository.findByPathAndFolderAndStartPosition(relativePath.toString(), folder, startPosition)
+                .map(file -> checkLastModified(file, minimizeDiskAccess))
+                .orElseGet(() -> {
+                    if (!Files.exists(folder.getPath().resolve(relativePath))) {
+                        return null;
+                    }
+                    if (startPosition == null || startPosition > MediaFile.NOT_INDEXED) {
+                        return null;
+                    }
+                    // Not found in database, must read from disk.
+                    MediaFile mediaFile = createMediaFileByFile(relativePath, folder);
+                    // Put in database.
+                    if (mediaFile != null) {
+                        updateMediaFile(mediaFile);
+                    }
+                    return mediaFile;
+                });
+
+            // cache the result
+            mediaFileCache.putMediaFileByPath(relativePath, folder, startPosition, result);
+        }
+        return result;
     }
 
-    @Cacheable(cacheNames = "mediaFileIdCache", condition = "#root.target.memoryCacheEnabled", unless = "#result == null")
-    public MediaFile getMediaFile(Integer id) {
+    /**
+     * Returns the media file for checking last modified.
+     *
+     * @param id The media file id.
+     * @return mediafile for the given id.
+     */
+    public MediaFile getMediaFile(@Param("id") Integer id) {
         if (Objects.isNull(id)) return null;
-        return mediaFileRepository.findById(id).map(mediaFile -> checkLastModified(mediaFile, settingsService.isFastCacheEnabled())).orElse(null);
+        MediaFile result = mediaFileCache.getMediaFileById(id);
+        if (result == null) {
+            result = mediaFileRepository.findById(id).map(mediaFile -> checkLastModified(mediaFile, settingsService.isFastCacheEnabled())).orElse(null);
+            mediaFileCache.putMediaFileById(id, result);
+        }
+        return result;
     }
 
     public List<MediaFile> getMediaFilesByRelativePath(Path relativePath) {
@@ -1172,13 +1193,9 @@ public class MediaFileService {
         updateMediaFile(mediaFile);
     }
 
-    @CacheEvict(cacheNames = { "mediaFilePathCache", "mediaFileIdCache" }, allEntries = true)
     public void setMemoryCacheEnabled(boolean memoryCacheEnabled) {
-        this.memoryCacheEnabled = memoryCacheEnabled;
-    }
-
-    public boolean getMemoryCacheEnabled() {
-        return memoryCacheEnabled;
+        mediaFileCache.clear();
+        mediaFileCache.setEnabled(memoryCacheEnabled);
     }
 
     /**
@@ -1312,14 +1329,13 @@ public class MediaFileService {
         this.metaDataParserFactory = metaDataParserFactory;
     }
 
-    @Caching(evict = {
-        @CacheEvict(cacheNames = "mediaFilePathCache", key = "#mediaFile.path.concat('-').concat(#mediaFile.folder.id).concat('-').concat(#mediaFile.startPosition == null ? '' : #mediaFile.startPosition.toString())"),
-        @CacheEvict(cacheNames = "mediaFileIdCache", key = "#mediaFile.id", condition = "#mediaFile.id != null") })
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public void updateMediaFile(MediaFile mediaFile) {
         if (mediaFile == null) {
             throw new IllegalArgumentException("mediaFile must not be null");
-        } else if (mediaFile.getId() != null && mediaFileRepository.existsById(mediaFile.getId())) {
+        }
+        mediaFileCache.removeMediaFile(mediaFile);
+        if (mediaFile.getId() != null && mediaFileRepository.existsById(mediaFile.getId())) {
             mediaFileRepository.save(mediaFile);
         } else {
             mediaFileRepository.findByPathAndFolderAndStartPosition(mediaFile.getPath(), mediaFile.getFolder(), mediaFile.getStartPosition()).ifPresentOrElse(m -> {
@@ -1501,14 +1517,12 @@ public class MediaFileService {
      * @param file media file to delete
      * @return deleted media file
      */
-    @Caching(evict = {
-        @CacheEvict(cacheNames = "mediaFilePathCache", key = "#mediaFile.path.concat('-').concat(#mediaFile.folder.id).concat('-').concat(#mediaFile.startPosition == null ? '' : #mediaFile.startPosition.toString())", condition = "#mediaFile != null"),
-        @CacheEvict(cacheNames = "mediaFileIdCache", key = "#mediaFile.id", condition = "#mediaFile != null && #mediaFile.id != null") })
     @Transactional
     public MediaFile delete(MediaFile file) {
         if (file == null) {
             return null;
         }
+        mediaFileCache.removeMediaFile(file);
         file.setPresent(false);
         file.setChildrenLastUpdated(Instant.ofEpochMilli(1));
         mediaFileRepository.save(file);

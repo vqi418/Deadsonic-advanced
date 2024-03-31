@@ -40,7 +40,7 @@ import org.springframework.core.env.PropertySource;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.PostConstruct;
+import jakarta.annotation.PostConstruct;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -272,13 +272,9 @@ public class SettingsService {
     @Autowired
     private AirsonicCueConfig cueConfig;
 
-    private Set<String> cachedCoverArtFileTypes;
     private Set<String> cachedMusicFileTypes;
     private Set<String> cachedVideoFileTypes;
     private Set<String> cachedPlayableFileTypes;
-    private RateLimiter downloadRateLimiter;
-    private RateLimiter uploadRateLimiter;
-    private Pattern excludePattern;
 
     // Array of obsolete properties. Used to clean property file.
     private static final List<String> OBSOLETE_KEYS = Arrays.asList("PortForwardingPublicPort", "PortForwardingLocalPort",
@@ -370,11 +366,10 @@ public class SettingsService {
             env.getProperty("libresonic.home")
         );
 
-        AirsonicDefaultFolderConfig defaultFolderConfig = new AirsonicDefaultFolderConfig(
-            env.getProperty("airsonic.defaultMusicFolder"),
-            env.getProperty("airsonic.defaultPodcastFolder"),
-            env.getProperty("airsonic.defaultPlaylistFolder")
-        );
+        AirsonicDefaultFolderConfig defaultFolderConfig = new AirsonicDefaultFolderConfig();
+        defaultFolderConfig.setDefaultMusicFolder(env.getProperty("airsonic.defaultMusicFolder"));
+        defaultFolderConfig.setDefaultPodcastFolder(env.getProperty("airsonic.defaultPodcastFolder"));
+        defaultFolderConfig.setDefaultPlaylistFolder(env.getProperty("airsonic.defaultPlaylistFolder"));
 
         // if jndi is set, everything datasource-related is ignored
         if (StringUtils.isBlank(env.getProperty(KEY_DATABASE_URL))) {

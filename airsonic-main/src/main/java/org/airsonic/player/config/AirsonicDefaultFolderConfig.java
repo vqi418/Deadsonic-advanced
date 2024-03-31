@@ -20,34 +20,27 @@ package org.airsonic.player.config;
 
 import org.airsonic.player.util.Util;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.boot.context.properties.ConstructorBinding;
+import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+@Component
 @ConfigurationProperties(prefix = "airsonic")
-@ConstructorBinding
 public class AirsonicDefaultFolderConfig {
 
     // constants
-    private final String DEFAULT_MUSIC_FOLDER_WINDOWS = "c:\\music";
-    private final String DEFAULT_MUSIC_FOLDER_OTHER = "/var/music";
-    private final String DEFAULT_PODCAST_FOLDER_WINDOWS = "c:\\podcast";
-    private final String DEFAULT_PODCAST_FOLDER_OTHER = "/var/podcast";
-    private final String DEFAULT_PLAYLIST_FOLDER_WINDOWS = "c:\\playlists";
-    private final String DEFAULT_PLAYLIST_FOLDER_OTHER = "/var/playlists";
+    private static final String DEFAULT_MUSIC_FOLDER_WINDOWS = "c:\\music";
+    private static final String DEFAULT_MUSIC_FOLDER_OTHER = "/var/music";
+    private static final String DEFAULT_PODCAST_FOLDER_WINDOWS = "c:\\podcast";
+    private static final String DEFAULT_PODCAST_FOLDER_OTHER = "/var/podcast";
+    private static final String DEFAULT_PLAYLIST_FOLDER_WINDOWS = "c:\\playlists";
+    private static final String DEFAULT_PLAYLIST_FOLDER_OTHER = "/var/playlists";
 
-    private final String defaultMusicFolder; // airsonic.defaultMusicFolder
-    private final String defaultPodcastFolder; // airsonic.defaultPodcastFolder
-    private final String defaultPlaylistFolder; // airsonic.defaultPlaylistFolder
-
-    public AirsonicDefaultFolderConfig(
-        String defaultMusicFolder,
-        String defaultPodcastFolder,
-        String defaultPlaylistFolder) {
-        this.defaultMusicFolder = getFolderProperty(defaultMusicFolder, DEFAULT_MUSIC_FOLDER_WINDOWS, DEFAULT_MUSIC_FOLDER_OTHER);
-        this.defaultPodcastFolder = getFolderProperty(defaultPodcastFolder, DEFAULT_PODCAST_FOLDER_WINDOWS, DEFAULT_PODCAST_FOLDER_OTHER);
-        this.defaultPlaylistFolder = getFolderProperty(defaultPlaylistFolder, DEFAULT_PLAYLIST_FOLDER_WINDOWS, DEFAULT_PLAYLIST_FOLDER_OTHER);
-    }
-
+    // airsonic.defaultMusicFolder
+    private String defaultMusicFolder = Util.isWindows() ? DEFAULT_MUSIC_FOLDER_WINDOWS : DEFAULT_MUSIC_FOLDER_OTHER;
+    // airsonic.defaultPodcastFolder
+    private String defaultPodcastFolder = Util.isWindows() ? DEFAULT_PODCAST_FOLDER_WINDOWS : DEFAULT_PODCAST_FOLDER_OTHER;
+    // airsonic.defaultPlaylistFolder
+    private String defaultPlaylistFolder = Util.isWindows() ? DEFAULT_PLAYLIST_FOLDER_WINDOWS : DEFAULT_PLAYLIST_FOLDER_OTHER;
 
     /**
      * Returns the directory
@@ -74,5 +67,17 @@ public class AirsonicDefaultFolderConfig {
 
     public String getDefaultPlaylistFolder() {
         return defaultPlaylistFolder;
+    }
+
+    public void setDefaultMusicFolder(String defaultMusicFolder) {
+        this.defaultMusicFolder = getFolderProperty(defaultMusicFolder, DEFAULT_MUSIC_FOLDER_WINDOWS, DEFAULT_MUSIC_FOLDER_OTHER);
+    }
+
+    public void setDefaultPodcastFolder(String defaultPodcastFolder) {
+        this.defaultPodcastFolder = getFolderProperty(defaultPodcastFolder, DEFAULT_PODCAST_FOLDER_WINDOWS, DEFAULT_PODCAST_FOLDER_OTHER);
+    }
+
+    public void setDefaultPlaylistFolder(String defaultPlaylistFolder) {
+        this.defaultPlaylistFolder = getFolderProperty(defaultPlaylistFolder, DEFAULT_PLAYLIST_FOLDER_WINDOWS, DEFAULT_PLAYLIST_FOLDER_OTHER);
     }
 }

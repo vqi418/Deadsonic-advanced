@@ -59,7 +59,7 @@ import static java.util.stream.Collectors.toList;
  * @author Sindre Mehus
  */
 @Controller
-@RequestMapping("/musicFolderSettings")
+@RequestMapping({"/musicFolderSettings", "/musicFolderSettings.view"})
 public class MusicFolderSettingsController {
 
     private static final Logger LOG = LoggerFactory.getLogger(MusicFolderSettingsController.class);

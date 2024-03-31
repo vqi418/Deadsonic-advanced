@@ -1,5 +1,5 @@
-<th:block th:replace="jquery" />
-<th:block th:replace="table" />
+<th:block th:replace="~{jquery}" />
+<th:block th:replace="~{table}" />
 <script type="text/javascript" th:src="@{/script/utils.js}"></script>
 <script type="text/javascript" th:src="@{/script/mediaelement/mediaelement-and-player.min.js}"></script>
 <script th:src="@{/script/mediaelement/plugins/speed/speed.min.js}"></script>
@@ -244,7 +244,7 @@ th:with="paginationaddition=${#strings.contains(' 10 20 50 100 -1', ' '.concat(m
                     },
                     { data: "artist",
                       className: "detail truncate",
-                      visible: /*[[ ${model['visibility']?.artistVisible =true} ]]*/ true,
+                      visible: /*[[ ${model['visibility']?.artistVisible == true} ]]*/ true,
                       title: /*[[#{personalsettings.artist}]]*/ "Artist",
                       render(artist, type) {
                           if (type == "display" && artist != null) {
