@@ -41,6 +41,9 @@
                                     <build>
                                         <dockerFile>${project.basedir}/Dockerfile</dockerFile>
                                         <tags>latest</tags>
+                                        <args>
+                                            <IMAGE_JAVA_VERSION>${docker.java.version}</IMAGE_JAVA_VERSION>
+                                        </args>
                                     </build>
                                 </image>
                             </images>
@@ -50,7 +53,7 @@
             </plugin>
             <plugin>
                 <artifactId>maven-dependency-plugin</artifactId>
-                <version>3.2.0</version>
+                <version>3.6.1</version>
                 <groupId>org.apache.maven.plugins</groupId>
                 <configuration>
                     <stripClassifier>true</stripClassifier>
