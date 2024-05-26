@@ -189,6 +189,9 @@ public class CoverArtController {
                 coverArtRequest.getCoverArt().getFullPath());
 
         try (InputStream in = imageInputStreamWithType.getLeft()) {
+            if (in == null) {
+                throw new FileNotFoundException("Cover art not found");
+            }
             response.setContentType(imageInputStreamWithType.getRight());
             IOUtils.copy(in, response.getOutputStream());
         }

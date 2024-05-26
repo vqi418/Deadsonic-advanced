@@ -21,13 +21,16 @@
 package org.airsonic.player.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import org.airsonic.player.util.FileUtil;
 import org.apache.commons.io.FilenameUtils;
 
 import jakarta.persistence.*;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -186,6 +189,23 @@ public class MediaFile {
     @JsonIgnore
     public Path getFullPath() {
         return folder.getPath().resolve(path);
+    }
+
+    @JsonIgnore
+    public boolean isExist() {
+        return Files.exists(getFullPath());
+    }
+
+    /**
+     * Returns true if the file has been changed since the last time it was scanned.
+     *
+     * @return true if the file has been changed since the last time it was scanned. True if the file does not exist.
+     */
+    @JsonIgnore
+    public boolean isChanged() {
+        Path fullPath = this.getFullPath();
+        return !Files.exists(fullPath) || this.changed.truncatedTo(ChronoUnit.MICROS)
+                .compareTo(FileUtil.lastModified(fullPath).truncatedTo(ChronoUnit.MICROS)) < 0;
     }
 
     public String getIndexPath() {

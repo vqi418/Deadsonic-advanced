@@ -22,6 +22,8 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.annotation.Nullable;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -135,24 +137,17 @@ public class CoverArtService {
         return art;
     }
 
+    @Nullable
     public Path getMediaFileArtPath(int id) {
         CoverArt art = getMediaFileArt(id);
         return getFullPath(art);
     }
 
-    public Path getFullPath(CoverArt art) {
+    @Nullable
+    public Path getFullPath(@Nullable CoverArt art) {
         if (art != null && !CoverArt.NULL_ART.equals(art)) {
-            if (art.getFolder() == null) {
-                // null folder ids mean absolute paths
-                return art.getRelativePath();
-            } else {
-                MusicFolder folder = art.getFolder();
-                if (folder != null) {
-                    return art.getFullPath(folder.getPath());
-                }
-            }
+            return art.getFullPath();
         }
-
         return null;
     }
 
@@ -166,10 +161,18 @@ public class CoverArtService {
     public void expunge() {
         coverArtCache.clear();
         List<CoverArt> expungeCoverArts = coverArtRepository.findAll().stream()
-            .filter(art ->
-                (art.getEntityType() == EntityType.ALBUM && art.getAlbum() == null) ||
-                (art.getEntityType() == EntityType.ARTIST && art.getArtist() == null) ||
-                (art.getEntityType() == EntityType.MEDIA_FILE && art.getMediaFile() == null))
+            .filter(art -> {
+                switch (art.getEntityType()) {
+                    case ALBUM:
+                        return art.getAlbum() == null || !art.getAlbum().isPresent();
+                    case ARTIST:
+                        return art.getArtist() == null || !art.getArtist().isPresent();
+                    case MEDIA_FILE:
+                        return art.getMediaFile() == null || !art.getMediaFile().isPresent();
+                    default:
+                        return false;
+                }
+            })
             .collect(Collectors.toList());
         coverArtRepository.deleteAll(expungeCoverArts);
     }

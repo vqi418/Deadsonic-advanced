@@ -147,18 +147,27 @@ public class CoverArtServiceTest {
                 new CoverArt(3, EntityType.MEDIA_FILE, "path/to/image.jpg", null, false),
                 new CoverArt(4, EntityType.ALBUM, "path/to/image.jpg", null, false),
                 new CoverArt(5, EntityType.ARTIST, "path/to/image.jpg", null, false),
-                new CoverArt(6, EntityType.MEDIA_FILE, "path/to/image.jpg", null, false)
+                new CoverArt(6, EntityType.MEDIA_FILE, "path/to/image.jpg", null, false),
+                new CoverArt(7, EntityType.ALBUM, "path/to/image.jpg", null, false),
+                new CoverArt(8, EntityType.ARTIST, "path/to/image.jpg", null, false),
+                new CoverArt(9, EntityType.MEDIA_FILE, "path/to/image.jpg", null, false)
         ).map(art -> {
-            if (art.getEntityId() < 4) {
+            if (art.getEntityId() < 7) {
                 switch (art.getEntityType()) {
                     case ALBUM:
-                        art.setAlbum(new Album());
+                        Album album = new Album();
+                        album.setPresent(art.getEntityId() <= 3); // only album with id 3 has an album present
+                        art.setAlbum(album);
                         break;
                     case ARTIST:
-                        art.setArtist(new Artist());
+                        Artist artist = new Artist();
+                        artist.setPresent(art.getEntityId() <= 3); // only artist with id 3 has an artist present
+                        art.setArtist(artist);
                         break;
                     case MEDIA_FILE:
-                        art.setMediaFile(new MediaFile());
+                        MediaFile mediaFile = new MediaFile();
+                        mediaFile.setPresent(art.getEntityId() <= 3); // only media file with id 3 has a media file present
+                        art.setMediaFile(mediaFile);
                         break;
                     case NONE:
                         break;
@@ -171,7 +180,7 @@ public class CoverArtServiceTest {
         coverArtService.expunge();
         verify(coverArtRepository, times(1)).deleteAll(coverArtListCaptor.capture());
         List<CoverArt> deletedCoverArt = coverArtListCaptor.getValue();
-        assertEquals(3, deletedCoverArt.size());
+        assertEquals(6, deletedCoverArt.size());
         assertTrue(deletedCoverArt.stream().allMatch(art -> art.getEntityId() > 3));
     }
 

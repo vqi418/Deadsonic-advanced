@@ -61,7 +61,6 @@ import org.springframework.context.MessageSource;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Sort.Direction;
-import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -130,6 +129,8 @@ public class MediaFileService {
     private FFmpegParser ffmpegParser;
 
     private final double DURATION_EPSILON = 1e-2;
+
+    private final Set<String> CUE_EXTENSIONS = Set.of("cue", "flac");
 
     private final Map<Integer, Pair<Integer, Instant>> lastPlayed = new ConcurrentHashMap<>();
 
@@ -211,9 +212,20 @@ public class MediaFileService {
      * @param id The media file id.
      * @return mediafile for the given id.
      */
-    public MediaFile getMediaFile(@Param("id") Integer id) {
+    public MediaFile getMediaFile(Integer id) {
+        return getMediaFile(id, false);
+    }
+
+    /**
+     * Returns the media file for checking last modified.
+     *
+     * @param id The media file id.
+     * @param ignoreCache Whether to ignore the cache
+     * @return mediafile for the given id.
+     */
+    public MediaFile getMediaFile(Integer id, boolean ignoreCache) {
         if (Objects.isNull(id)) return null;
-        MediaFile result = mediaFileCache.getMediaFileById(id);
+        MediaFile result = ignoreCache ? null : mediaFileCache.getMediaFileById(id);
         if (result == null) {
             result = mediaFileRepository.findById(id).map(mediaFile -> checkLastModified(mediaFile, settingsService.isFastCacheEnabled())).orElse(null);
             mediaFileCache.putMediaFileById(id, result);
@@ -229,7 +241,15 @@ public class MediaFileService {
         return getParentOf(mediaFile, settingsService.isFastCacheEnabled());
     }
 
-    public MediaFile getParentOf(MediaFile mediaFile, boolean minimizeDiskAccess) {
+    /**
+     * Returns the parent of the given media file.
+     *
+     * @param mediaFile The media file. Must not be {@code null}.
+     * @param minimizeDiskAccess Whether to refrain from checking for new or changed files
+     * @return The parent of the given media file. May be {@code null}.
+     */
+    @Nullable
+    public MediaFile getParentOf(@Nonnull MediaFile mediaFile, boolean minimizeDiskAccess) {
         if (mediaFile.getParentPath() == null) {
             return null;
         }
@@ -241,7 +261,7 @@ public class MediaFileService {
                 && !mediaFile.isIndexedTrack() // ignore virtual track
                 && (mediaFile.getVersion() < MediaFile.VERSION
                     || settingsService.getFullScan()
-                    || mediaFile.getChanged().truncatedTo(ChronoUnit.MICROS).compareTo(FileUtil.lastModified(mediaFile.getFullPath()).truncatedTo(ChronoUnit.MICROS)) < 0
+                    || mediaFile.isChanged()
                     || (mediaFile.hasIndex() && mediaFile.getChanged().truncatedTo(ChronoUnit.MICROS).compareTo(FileUtil.lastModified(mediaFile.getFullIndexPath()).truncatedTo(ChronoUnit.MICROS)) < 0)
                 );
     }
@@ -737,7 +757,7 @@ public class MediaFileService {
     private List<MediaFile> updateChildren(@Nonnull MediaFile parent) {
 
         // Check timestamps.
-        if (parent.getChildrenLastUpdated().compareTo(parent.getChanged()) >= 0) {
+        if (parent.getChildrenLastUpdated().compareTo(parent.getChanged()) > 0) {
             return null;
         }
 
@@ -778,14 +798,13 @@ public class MediaFileService {
                                 bareFiles.put(FilenameUtils.getName(mediaFile.getPath()), mediaFile);
                             }
                         }
-                        return;
-                    } else if (isEnableCueIndexing) {
+                    }
+                    if (isEnableCueIndexing && includeCueSheetByPath(x)) {
                         LOG.debug("Cue indexing enabled");
                         CueSheet cueSheet = getCueSheet(x);
                         if (cueSheet != null) {
                             cueSheets.put(relativePath.toString(), cueSheet);
                         }
-                        return;
                     }
                 });
         } catch (IOException e) {
@@ -880,6 +899,11 @@ public class MediaFileService {
         return (!isExcluded(candidate) && (Files.isDirectory(candidate) || isAudioFile(suffix) || isVideoFile(suffix)));
     }
 
+    private boolean includeCueSheetByPath(Path candidate) {
+        String suffix = FilenameUtils.getExtension(candidate.toString()).toLowerCase();
+        return CUE_EXTENSIONS.contains(suffix);
+    }
+
     private boolean isAudioFile(String suffix) {
         return settingsService.getMusicFileTypesSet().contains(suffix.toLowerCase());
     }
@@ -916,7 +940,7 @@ public class MediaFileService {
      * @param folder      music folder
      * @return media file reflected from file system
      */
-    private MediaFile createMediaFileByFile(Path relativePath, MusicFolder folder) {
+    private @Nullable MediaFile createMediaFileByFile(Path relativePath, MusicFolder folder) {
         MediaFile mediaFile = new MediaFile();
         mediaFile.setPath(relativePath.toString());
         mediaFile.setFolder(folder);
@@ -1147,7 +1171,8 @@ public class MediaFileService {
         }
     }
 
-    private List<MediaFile> createIndexedTracks(MediaFile base, CueSheet cueSheet) {
+    @Nonnull
+    private List<MediaFile> createIndexedTracks(@Nonnull MediaFile base, @Nullable CueSheet cueSheet) {
 
         Map<Pair<String, Double>, MediaFile> storedChildrenMap = mediaFileRepository.findByFolderAndPath(base.getFolder(), base.getPath()).parallelStream()
             .filter(MediaFile::isIndexedTrack).collect(Collectors.toConcurrentMap(i -> Pair.of(i.getPath(), i.getStartPosition()), i -> i));
@@ -1162,18 +1187,9 @@ public class MediaFileService {
             }
 
             Path audioFile = base.getFullPath();
-            MetaData metaData = null;
-            MetaDataParser parser = metaDataParserFactory.getParser(audioFile);
-            if (parser != null) {
-                metaData = parser.getMetaData(audioFile);
-            }
             long wholeFileSize = Files.size(audioFile);
-            double wholeFileLength = 0.0; //todo: find sound length without metadata
-            if (metaData != null && metaData.getDuration() != null) {
-                wholeFileLength = metaData.getDuration();
-            }
+            double wholeFileLength = base.getDuration();
 
-            String format = StringUtils.trimToNull(StringUtils.lowerCase(FilenameUtils.getExtension(audioFile.toString())));
             String basePath = base.getPath();
             String file = cueSheet.getFileData().get(0).getFile();
             LOG.info(file);
@@ -1235,18 +1251,14 @@ public class MediaFileService {
                     track.setCreated(lastModified);
                     track.setPresent(true);
                     track.setTrackNumber(trackData.getNumber());
-
-                    if (metaData != null) {
-                        track.setDiscNumber(metaData.getDiscNumber());
-                        track.setGenre(metaData.getGenre());
-                        track.setYear(metaData.getYear());
-                        track.setBitRate(metaData.getBitRate());
-                        track.setVariableBitRate(metaData.getVariableBitRate());
-                        track.setHeight(metaData.getHeight());
-                        track.setWidth(metaData.getWidth());
-                    }
-
-                    track.setFormat(format);
+                    track.setDiscNumber(base.getDiscNumber());
+                    track.setGenre(base.getGenre());
+                    track.setYear(base.getYear());
+                    track.setBitRate(base.getBitRate());
+                    track.setVariableBitRate(base.isVariableBitRate());
+                    track.setHeight(base.getHeight());
+                    track.setWidth(base.getWidth());
+                    track.setFormat(base.getFormat());
                     track.setStartPosition(currentStart);
                     track.setDuration(duration);
                     // estimate file size based on duration and whole file size
@@ -1323,7 +1335,7 @@ public class MediaFileService {
      * @param cueFile absolute path of cue or embedded flac file
      * @return if parse success return cue sheet, otherwise null
      */
-    private CueSheet getCueSheet(Path cueFile) {
+    private CueSheet getCueSheet(@Nonnull Path cueFile) {
         try {
             CueSheet cueSheet = null;
             switch (FilenameUtils.getExtension(cueFile.toString()).toLowerCase()) {
@@ -1658,6 +1670,7 @@ public class MediaFileService {
         file.setPresent(false);
         file.setChildrenLastUpdated(Instant.ofEpochMilli(1));
         mediaFileRepository.save(file);
+        coverArtService.delete(EntityType.MEDIA_FILE, file.getId());
         return file;
     }
 

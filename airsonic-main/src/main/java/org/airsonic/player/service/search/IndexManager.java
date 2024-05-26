@@ -157,14 +157,16 @@ public class IndexManager {
         }
     }
 
-    public final void startIndexing() {
-        EnumSet.allOf(IndexType.class).parallelStream().forEach(x -> {
+    public final boolean startIndexing() {
+        return EnumSet.allOf(IndexType.class).parallelStream().map(x -> {
             try {
                 writers.put(x, createIndexWriter(x));
             } catch (IOException e) {
                 LOG.error("Failed to create search index for {}", x, e);
+                return false;
             }
-        });
+            return true;
+        }).reduce(true, (a, b) -> a && b);
     }
 
     private IndexWriter createIndexWriter(IndexType indexType) throws IOException {

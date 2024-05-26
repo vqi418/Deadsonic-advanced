@@ -14,25 +14,35 @@
  *  You should have received a copy of the GNU General Public License
  *  along with Airsonic.  If not, see <http://www.gnu.org/licenses/>.
  *
+ *  Copyright 2024 (C) Y.Tory
  *  Copyright 2015 (C) Sindre Mehus
  */
 
 package org.airsonic.player.controller;
 
+import org.airsonic.player.command.PodcastChannelCommand;
+import org.airsonic.player.command.PodcastEpisodeCommand;
+import org.airsonic.player.domain.PodcastStatus;
+import org.airsonic.player.domain.User;
+import org.airsonic.player.domain.UserSettings;
+import org.airsonic.player.service.PersonalSettingsService;
 import org.airsonic.player.service.PodcastPersistenceService;
 import org.airsonic.player.service.SecurityService;
+import org.airsonic.player.service.podcast.PodcastDownloadClient;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.ServletRequestUtils;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.ModelAndView;
 
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.EnumSet;
+import java.util.Set;
 
 /**
  * Controller for the "Podcast channel" page.
@@ -47,20 +57,122 @@ public class PodcastChannelController {
     private PodcastPersistenceService podcastService;
     @Autowired
     private SecurityService securityService;
+    @Autowired
+    private PersonalSettingsService personalSettingsService;
+    @Autowired
+    private PodcastDownloadClient podcastDownloadClient;
+
+    private static final Set<PodcastStatus> DOWNLOADABLE_STATUSES = EnumSet.of(PodcastStatus.SKIPPED, PodcastStatus.ERROR, PodcastStatus.NEW);
+    private static final Set<PodcastStatus> LOCKABLE_STATUSES = EnumSet.of(PodcastStatus.SKIPPED, PodcastStatus.COMPLETED, PodcastStatus.NEW);
+    private static final Set<PodcastStatus> UNLOCKABLE_STATUSES = EnumSet.of(PodcastStatus.SKIPPED, PodcastStatus.COMPLETED, PodcastStatus.NEW, PodcastStatus.ERROR, PodcastStatus.DELETED);
+
+    @ModelAttribute
+    public User getUser(HttpServletRequest request) {
+        return securityService.getCurrentUser(request);
+    }
 
     @GetMapping
-    protected ModelAndView handleRequestInternal(HttpServletRequest request, HttpServletResponse response) throws Exception {
+    protected ModelAndView get(@ModelAttribute User user,
+            @RequestParam(name = "id", required = true) Integer channelId) throws Exception {
 
-        Map<String, Object> map = new HashMap<>();
+        PodcastChannelCommand command = new PodcastChannelCommand();
+        UserSettings settings = personalSettingsService.getUserSettings(user.getUsername());
+        command.setUser(user);
+        command.setChannel(podcastService.getChannel(channelId));
+        command.setEpisodesByDAO(podcastService.getEpisodes(channelId));
+        command.setPartyModeEnabled(settings.getPartyModeEnabled());
+
         ModelAndView result = new ModelAndView();
-        result.addObject("model", map);
-
-        int channelId = ServletRequestUtils.getRequiredIntParameter(request, "id");
-
-        map.put("user", securityService.getCurrentUser(request));
-        map.put("channel", podcastService.getChannel(channelId));
-        map.put("episodes", podcastService.getEpisodes(channelId));
+        result.addObject("command", command);
         return result;
+    }
+
+    @PostMapping(params = "delete")
+    protected String deleteEpisodes(@ModelAttribute User user,
+            @ModelAttribute(name = "channelId") Integer channelId,
+            @ModelAttribute("command") PodcastChannelCommand command) throws Exception {
+
+        if (!user.isPodcastRole()) {
+            throw new AccessDeniedException("Podcast is forbidden for user " + user.getUsername());
+        }
+
+        if (channelId == null) {
+            throw new IllegalArgumentException("Channel ID is null");
+        }
+
+        command.getEpisodes().stream()
+                .filter(ep -> ep.isSelected() && ep.getStatus() != PodcastStatus.DELETED)
+                .map(PodcastEpisodeCommand::getId)
+                .forEach(id -> podcastService.deleteEpisode(id, true));
+
+        return "redirect:/podcastChannel.view?id=" + channelId;
+
+    }
+
+    @PostMapping(params = "download")
+    protected String downloadEpisodes(@ModelAttribute User user,
+            @ModelAttribute(name = "channelId") Integer channelId,
+            @ModelAttribute("command") PodcastChannelCommand command) throws Exception {
+
+        if (!user.isPodcastRole()) {
+            throw new AccessDeniedException("Podcast is forbidden for user " + user.getUsername());
+        }
+
+        if (channelId == null) {
+            throw new IllegalArgumentException("Channel ID is null");
+        }
+
+        command.getEpisodes().parallelStream()
+                .filter(ep -> ep.isSelected() && DOWNLOADABLE_STATUSES.contains(ep.getStatus()))
+                .map(PodcastEpisodeCommand::getId)
+                .forEach(podcastDownloadClient::downloadEpisode);
+
+        return "redirect:/podcastChannel.view?id=" + channelId;
+
+    }
+
+    @PostMapping(params = "lock")
+    protected String lockEpisodes(@ModelAttribute User user,
+            @ModelAttribute(name = "channelId") Integer channelId,
+            @ModelAttribute("command") PodcastChannelCommand command) throws Exception {
+
+        if (!user.isPodcastRole()) {
+            throw new AccessDeniedException("Podcast is forbidden for user " + user.getUsername());
+        }
+
+        if (channelId == null) {
+            throw new IllegalArgumentException("Channel ID is null");
+        }
+
+        command.getEpisodes().parallelStream()
+                .filter(ep -> ep.isSelected() && LOCKABLE_STATUSES.contains(ep.getStatus()))
+                .map(PodcastEpisodeCommand::getId)
+                .forEach(podcastService::lockEpisode);
+
+        return "redirect:/podcastChannel.view?id=" + channelId;
+
+    }
+
+    @PostMapping(params = "unlock")
+    protected String unlockEpisodes(@ModelAttribute User user,
+            @ModelAttribute(name = "channelId") Integer channelId,
+            @ModelAttribute("command") PodcastChannelCommand command) throws Exception {
+
+        if (!user.isPodcastRole()) {
+            throw new AccessDeniedException("Podcast is forbidden for user " + user.getUsername());
+        }
+
+        if (channelId == null) {
+            throw new IllegalArgumentException("Channel ID is null");
+        }
+
+        command.getEpisodes().parallelStream()
+                .filter(ep -> ep.isSelected() && UNLOCKABLE_STATUSES.contains(ep.getStatus()))
+                .map(PodcastEpisodeCommand::getId)
+                .forEach(podcastService::unlockEpisode);
+
+        return "redirect:/podcastChannel.view?id=" + channelId;
+
     }
 
 }

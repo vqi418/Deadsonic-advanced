@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
@@ -148,9 +149,10 @@ public class PlayQueueService {
     @Transactional
     public int savePlayQueue(String username, List<Integer> mediaFileIds, Integer currentFileId, Long position, String changedBy) {
         SavedPlayQueue savedPlayQueue = savedPlayQueueRepository.findByUsername(username).orElse(new SavedPlayQueue(username));
-        List<MediaFile> mediaFiles = mediaFileIds.stream().map(mediaFileService::getMediaFile).collect(Collectors.toList());
+
+        List<MediaFile> mediaFiles = mediaFileIds.stream().map(mid -> mediaFileService.getMediaFile(mid, true)).filter(Objects::nonNull).collect(Collectors.toList());
         savedPlayQueue.setMediaFiles(mediaFiles);
-        savedPlayQueue.setCurrentMediaFile(mediaFileService.getMediaFile(currentFileId));
+        savedPlayQueue.setCurrentMediaFile(mediaFileService.getMediaFile(currentFileId, true));
         savedPlayQueue.setPositionMillis(position);
         savedPlayQueue.setChanged(Instant.now());
         savedPlayQueue.setChangedBy(changedBy);

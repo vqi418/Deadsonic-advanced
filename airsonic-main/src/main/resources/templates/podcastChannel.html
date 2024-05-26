@@ -29,7 +29,7 @@
                 buttons: {
                     /*[+
                     [(#{common.delete})]: function() {
-                        location.href = "[(@{/podcastReceiverAdmin.view(channelId=${model.channel.id}, deleteChannel=${model.channel.id})})]";
+                        location.href = "[(@{/podcastReceiverAdmin.view(channelId=${command.channel.id}, deleteChannel=${command.channel.id})})]";
                     },
                     [(#{common.cancel})]: function() {
                         $(this).dialog("close");
@@ -48,62 +48,60 @@
                 
               $( '#episodessa' ).click( function () {
                   $( '.music tr input[type="checkbox"]' ).prop('checked', this.checked);
+                  countSelected();
               });
-        }
 
-        function downloadSelected() {
-            /*[+
-            location.href = "[(|@{/podcastReceiverAdmin.view(channelId=${model.channel.id})}&|)]" +
-                    getSelectedEpisodes().map(i => "downloadEpisode=" + i).join("&");
-            +]*/
-            /*[-*/
-            location.href = "podcastReceiverAdmin.view?channelId=0&" +
-                    getSelectedEpisodes().map(i => "downloadEpisode=" + i).join("&");
-            /*-]*/
+            feather.replace();
+            Array.from(document.querySelectorAll('svg.feather[title]')).forEach((element) => {
+               element.insertAdjacentHTML('afterbegin', `<title>${element.attributes.title.value}</title>`);
+            });
+            countSelected();
         }
 
         function deleteChannel() {
             $("#dialog-delete").dialog("open");
         }
 
-        function deleteSelected() {
-            /*[+
-            location.href = "[(|@{/podcastReceiverAdmin.view(channelId=${model.channel.id})}&|)]" +
-                    getSelectedEpisodes().map(i => "deleteEpisode=" + i).join("&");
-            +]*/
-            /*[-*/
-            location.href = "podcastReceiverAdmin.view?channelId=0&" +
-                    getSelectedEpisodes().map(i => "deleteEpisode=" + i).join("&");
-            /*-]*/ 
-        }
-
         function refreshChannels() {
             /*[+
-            location.href = "[(@{/podcastReceiverAdmin.view(refresh,channelId=${model.channel.id})})]";
+            location.href = "[(@{/podcastReceiverAdmin.view(refresh,channelId=${command.channel.id})})]";
             +]*/
             /*[-*/
             location.href = "podcastReceiverAdmin.view?refresh&channelId=0";
             /*-]*/
         }
 
-        function refreshPage() {
-            /*[+
-            location.href = "[(@{/podcastChannel.view(id=${model.channel.id})})]";
-            +]*/
-            /*[-*/
-            location.href = "podcastChannel.view?id=0";
-            /*-]*/
+        function actionSelected(action) {
+            switch (action) {
+                case "download":
+                    $('input[type=submit]#download-selected').click();
+                    break;
+                case "delete":
+                    $('input[type=submit]#delete-selected').click();
+                    break;
+                case "lock":
+                    $('input[type=submit]#lock-selected').click();
+                    break;
+                case "unlock":
+                    $('input[type=submit]#unlock-selected').click();
+                    break;
+                default:
+                    break;
+            }
         }
 
-        function getSelectedEpisodes() {
-            var result = [];
-            for (var i = 0; i < /*[(${#lists.size(model.episodes)})]*/ 3; i++) {
-                var checkbox = $("#episode" + i);
-                if (checkbox.is(":checked")) {
-                    result.push(checkbox.val());
+        function countSelected() {
+            var count = 0;
+            $('.music tr input[type="checkbox"]').each(function() {
+                if ($(this).prop('checked')) {
+                    count++;
                 }
+            });
+            if (count == 0) {
+                $('#episode-control td#selected-action').hide();
+            } else {
+                $('#episode-control td#selected-action').show();
             }
-            return result;
         }
 
     </script>
@@ -114,47 +112,85 @@
       .music .left {
           text-align: left;
       }
+      #episode-control td{
+          height: 28px;
+          vertical-align: middle;
+          padding: 0 0.5em;
+      }
+      #episode-control td#selected-action{
+          display: none;
+      }
     </style>
 </head>
 <body class="mainframe bgcolor1" onload="init()">
 
-<div style="float:left;margin-right:1.5em;margin-bottom:1.5em">
-    <th:block th:replace="~{coverArt::art(podcastChannelId=${model.channel.id}, coverArtSize=${160})}" />
+<div style="float:left;margin-right:1.5em;margin-bottom:1em">
+    <th:block th:replace="~{coverArt::art(podcastChannelId=${command.channel.id}, coverArtSize=${160})}" />
 </div>
 
-<h1 id="name"><a th:href="@{/podcastChannels.view}" th:text="#{podcastreceiver.title}"></a> &raquo; <span th:text="${model.channel.title}"></span></h1>
+<h1 id="name"><a th:href="@{/podcastChannels.view}" th:text="#{podcastreceiver.title}"></a> &raquo; <span th:text="${command.channel.title}"></span></h1>
 <h2>
-    <span class="header"><a th:href="|javascript:top.playQueue.onPlayPodcastChannel(${model.channel.id})|" th:text="#{common.play}"></a></span>
+    <span class="header"><a th:href="|javascript:top.playQueue.onPlayPodcastChannel(${command.channel.id})|" th:text="#{common.play}"></a></span>
 
-    <th:block th:if="${model.user.podcastRole}">
+    <th:block th:if="${command.user.podcastRole}">
         | <span class="header"><a href="javascript:deleteChannel()" th:text="#{common.delete}"></a></span>
         | <span class="header"><a href="javascript:refreshChannels()" th:text="#{podcastreceiver.check}"></a></span>
     </th:block>
+    <th:block th:if="*{user.adminRole}">
+        | <span class="header"><a th:href="@{/podcastSettings.view}" th:text="#{podcastreceiver.settings}"></a></span>
+    </th:block>
 </h2>
 
-<div class="detail" style="padding-top:0.2em;white-space:normal;width:80%" th:text="${model.channel.description}"></div>
+<div class="detail" style="padding-top:0.2em;white-space:normal;width:80%" th:text="${command.channel.description}"></div>
 
 <div class="detail" style="padding-top:1.0em">
-    <span th:text="#{podcastreceiver.episodes(${#lists.size(model.episodes)})}"></span> &ndash;
-    <span th:text="#{podcastreceiver.status.__${#strings.toLowerCase(model.channel.status)}__}"></span>
-    <span th:if="${model.channel.status.name eq 'ERROR'}" class="warning" th:text="${model.channel.errorMessage}"></span>
+    <span th:text="#{podcastreceiver.episodes(${#lists.size(command.episodes)})}"></span> &ndash;
+    <span th:text="#{podcastreceiver.status.__${#strings.toLowerCase(command.channel.status)}__}"></span>
+    <span th:if="${command.channel.status.name eq 'ERROR'}" class="warning" th:text="${command.channel.errorMessage}"></span>
 </div>
 
 <div style="height:0.7em;clear:both"></div>
 
+<hr/>
+<form th:action="@{/podcastChannel.view}" method="post" id="form-selected">
+<input type="hidden" id="channelId" name="channelId" th:value="${command.channel.id}"/>
+<table id="episode-control"><tr>
+    <td style="padding-left:1em"><span><a th:href=@{podcastChannel.view(id=${command.channel.id})}><i data-feather="refresh-cw" role="img" th:aria-label="#{podcastreceiver.refresh}"
+                        th:title="#{podcastreceiver.refresh}"></i></a></span></td>
+    <th:block th:if="${command.user.podcastRole}">
+        <td id="selected-action"><a href="javascript:actionSelected('download')"><i data-feather="download-cloud" role="img" th:aria-label="#{podcastreceiver.downloadselected}" th:title="#{podcastreceiver.downloadselected}"></i></a></td>
+        <td id="selected-action"><a href="javascript:actionSelected('delete')"><i data-feather="trash-2" role="img" th:aria-label="#{podcastreceiver.deleteselected}" th:title="#{podcastreceiver.deleteselected}"></i></a></td>
+        <td id="selected-action"><a href="javascript:actionSelected('lock')"><i data-feather="lock" role="img" th:aria-label="#{podcastreceiver.lockselected}" th:title="#{podcastreceiver.lockselected}"></i></td>
+        <td id="selected-action"><a href="javascript:actionSelected('unlock')"><i data-feather="unlock" role="img" th:aria-label="#{podcastreceiver.unlockselected}" th:title="#{podcastreceiver.unlockselected}"></i></a></td>
+        <input type="submit" id="download-selected" name="download" th:value="#{podcastreceiver.downloadselected}" style="display: none;"/>
+        <input type="submit" id="delete-selected" name="delete" th:value="#{podcastreceiver.deleteselected}" style="display: none;"/>
+        <input type="submit" id="lock-selected" name="lock" th:value="#{podcastreceiver.lockselected}" style="display: none;"/>
+        <input type="submit" id="unlock-selected" name="unlock" th:value="#{podcastreceiver.unlockselected}" style="display: none;"/>
+    </th:block>
+</tr></table>
+
+
+<div id="dialog-delete" th:title="#{common.confirm}" style="display: none;">
+    <p><span class="ui-icon ui-icon-alert" style="float:left; margin:0 7px 20px 0;"></span>
+        <span th:text="#{podcastreceiver.confirmdelete}"></span></p>
+</div>
+</form>
+
 <table class="music">
         <tr>
             <th class="fit center"><input type="checkbox" id="episodessa" value="all"/></th>
-            <th colspan="4"></th>
+            <th colspan="5"></th>
             <th class="truncate left" th:text="#{podcastreceiver.episode}"></th>
             <th class="fit center" th:text="#{personalsettings.duration}"></th>
             <th class="fit left" th:text="#{podcastreceiver.published}"></th>
             <th class="fit center" th:text="#{top.status}"></th>
             <th class="truncate left" th:text="#{sharesettings.description}"></th>
         </tr>
-        <tr th:each="episode, i: ${model.episodes}">
+        <tr th:each="episode, loopStatus: ${command.episodes}">
+            <input type="hidden" th:field="${command.episodes[__${loopStatus.index}__].id}" form="form-selected"/>
+            <input type="hidden" th:field="${command.episodes[__${loopStatus.index}__].status}" form="form-selected"/>
 
-            <td class="fit center"><input type="checkbox" th:id="|episode${i.index}|" th:value="${episode.id}"/></td>
+            <td class="fit center"><input type="checkbox" th:field="${command.episodes[__${loopStatus.index}__].selected}" form="form-selected" onchange="countSelected()"/></td>
 
             <th:block th:if="${#strings.isEmpty(episode.mediaFile?.id) or episode.status.name ne 'COMPLETED'}">
                 <td colspan="4"></td>
@@ -162,13 +198,22 @@
             <th:block th:if="${!#strings.isEmpty(episode.mediaFile?.id) && episode.status.name eq 'COMPLETED'}">
                     <th:block th:replace="~{playButtons::buttons(
                         id=${episode.mediaFile.id},
-                        playEnabled=${model.user.streamRole and model['partyModeEnabled'] != true},
-                        addEnabled=${model.user.streamRole and model['partyModeEnabled'] != true},
+                        playEnabled=${command.user.streamRole and !command.partyModeEnabled },
+                        addEnabled=${command.user.streamRole and !command.partyModeEnabled },
                         asTable=true,
                         podcastId=${episode.id}
                     )}" />
             </th:block>
-
+            <td class="fit center">
+                <th:block th:if="${episode.locked}">
+                <span><i data-feather="lock" role="img" th:aria-label="#{podcastreceiver.locked}"
+                        th:title="#{podcastreceiver.locked}" class="feather-sm"></i></span>
+                </th:block>
+                <th:block th:if="${!episode.locked && (episode.status.name eq 'COMPLETED' or episode.status.name eq 'SKIPPED')}">
+                <span><i data-feather="unlock" role="img" th:aria-label="#{podcastreceiver.unlocked}"
+                        th:title="#{podcastreceiver.unlocked}" class="feather-sm feather-weak"></i></span>
+                </th:block>
+            </td>
             <td class="truncate">
                     <span th:title="${episode.title}" class="songTitle" th:text="${episode.title}"></span>
             </td>
@@ -200,21 +245,5 @@
         </tr>
 </table>
 
-<table style="padding-top:1em"><tr>
-    <th:block th:if="${model.user.podcastRole}">
-        <td style="padding-right:2em"><div class="forward"><a href="javascript:downloadSelected()" th:text="#{podcastreceiver.downloadselected}"></a></div></td>
-        <td style="padding-right:2em"><div class="forward"><a href="javascript:deleteSelected()" th:text="#{podcastreceiver.deleteselected}"></a></div></td>
-    </th:block>
-    <td style="padding-right:2em"><div class="forward"><a href="javascript:refreshPage()" th:text="#{podcastreceiver.refresh}"></a></div></td>
-    <th:block th:if="${model.user.adminRole}">
-        <td style="padding-right:2em"><div class="forward"><a th:href="@{/podcastSettings.view}" th:text="#{podcastreceiver.settings}"></a></div></td>
-    </th:block>
-</tr></table>
-
-
-<div id="dialog-delete" th:title="#{common.confirm}" style="display: none;">
-    <p><span class="ui-icon ui-icon-alert" style="float:left; margin:0 7px 20px 0;"></span>
-        <span th:text="#{podcastreceiver.confirmdelete}"></span></p>
-</div>
 
 </body></html>

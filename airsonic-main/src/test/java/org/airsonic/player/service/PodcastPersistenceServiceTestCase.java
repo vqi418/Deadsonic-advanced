@@ -39,6 +39,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -50,7 +51,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -95,6 +98,8 @@ public class PodcastPersistenceServiceTestCase {
     private CloseableHttpResponse mockedHttpResponse;
     @Mock
     private HttpEntity mockedHttpEntity;
+    @Mock
+    private PodcastChannelRule mockedChannelRule;
 
     @TempDir
     private Path tempFolder;
@@ -400,4 +405,82 @@ public class PodcastPersistenceServiceTestCase {
         verify(mediaFileService, never()).getMediaFile(anyInt());
     }
 
+    @Test
+    public void testDeleteObsoleteEpisodes() {
+        // Mocking the channel and episodes
+        when(mockedChannel.getId()).thenReturn(1);
+        when(mockedChannelRule.getRetentionCount()).thenReturn(5);
+        when(podcastRuleRepository.findById(1)).thenReturn(Optional.of(mockedChannelRule));
+
+        List<PodcastEpisode> episodes = new ArrayList<>();
+        for (int i = 1; i <= 15; i++) {
+            episodes.add(mockedEpisode);
+        }
+        when(podcastEpisodeRepository.findByChannelAndLockedFalse(mockedChannel)).thenReturn(episodes);
+
+        // Calling the method to be tested
+        podcastService.deleteObsoleteEpisodes(mockedChannel);
+
+        // Verifying the method calls
+        verify(mockedEpisode, times(10)).setStatus(PodcastStatus.DELETED);
+        verify(mockedEpisode, times(10)).setErrorMessage(null);
+        verify(podcastEpisodeRepository, times(10)).save(mockedEpisode);
+    }
+
+    @Test
+    public void testDeleteObsoleteEpisodesWithRetentionCountUnlimitedShouldDoNothing() {
+        // Mocking the channel and episodes
+        when(mockedChannel.getId()).thenReturn(1);
+        when(mockedChannelRule.getRetentionCount()).thenReturn(-1);
+        when(podcastRuleRepository.findById(1)).thenReturn(Optional.of(mockedChannelRule));
+
+        // Calling the method to be tested
+        podcastService.deleteObsoleteEpisodes(mockedChannel);
+
+        // Verifying the method calls
+        verifyNoInteractions(mockedEpisode);
+        verifyNoInteractions(podcastEpisodeRepository);
+    }
+
+    @Test
+    public void testDeleteObsoleteEpisodesWithDownloadingEpisodeShouldDoNothing() {
+        // Mocking the channel and episodes
+        when(mockedChannel.getId()).thenReturn(1);
+        when(mockedChannelRule.getRetentionCount()).thenReturn(5);
+        when(podcastRuleRepository.findById(1)).thenReturn(Optional.of(mockedChannelRule));
+
+        List<PodcastEpisode> episodes = new ArrayList<>();
+        for (int i = 1; i <= 15; i++) {
+            PodcastEpisode episode = new PodcastEpisode();
+            episode.setStatus(PodcastStatus.DOWNLOADING);
+        }
+        when(podcastEpisodeRepository.findByChannelAndLockedFalse(mockedChannel)).thenReturn(episodes);
+
+        // Calling the method to be tested
+        podcastService.deleteObsoleteEpisodes(mockedChannel);
+
+        // Verifying the method calls
+        verifyNoMoreInteractions(podcastEpisodeRepository);
+    }
+
+    @Test
+    public void testDeleteObsoleteEpisodesWithRetentionEnoughShouldDoNothing() {
+        // Mocking the channel and episodes
+        when(mockedChannel.getId()).thenReturn(1);
+        when(mockedChannelRule.getRetentionCount()).thenReturn(5);
+        when(podcastRuleRepository.findById(1)).thenReturn(Optional.of(mockedChannelRule));
+
+        List<PodcastEpisode> episodes = new ArrayList<>();
+        for (int i = 1; i <= 5; i++) {
+            PodcastEpisode episode = new PodcastEpisode();
+            episode.setStatus(PodcastStatus.DOWNLOADING);
+        }
+        when(podcastEpisodeRepository.findByChannelAndLockedFalse(mockedChannel)).thenReturn(episodes);
+
+        // Calling the method to be tested
+        podcastService.deleteObsoleteEpisodes(mockedChannel);
+
+        // Verifying the method calls
+        verifyNoMoreInteractions(podcastEpisodeRepository);
+    }
 }

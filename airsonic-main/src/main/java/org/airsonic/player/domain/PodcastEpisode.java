@@ -74,6 +74,9 @@ public class PodcastEpisode {
     @Enumerated(EnumType.STRING)
     private PodcastStatus status;
 
+    @Column(name = "locked")
+    private boolean locked;
+
     @Column(name = "error_message")
     private String errorMessage;
 
@@ -210,6 +213,14 @@ public class PodcastEpisode {
 
     public void setEpisodeGuid(String episodeGuid) {
         this.episodeGuid = episodeGuid;
+    }
+
+    public boolean isLocked() {
+        return locked;
+    }
+
+    public void setLocked(boolean locked) {
+        this.locked = locked;
     }
 
     @Override

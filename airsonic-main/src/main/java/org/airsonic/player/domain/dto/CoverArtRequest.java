@@ -3,6 +3,7 @@ package org.airsonic.player.domain.dto;
 import org.airsonic.player.domain.CoverArt;
 import org.airsonic.player.util.FileUtil;
 
+import java.nio.file.Files;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -29,7 +30,7 @@ public abstract class CoverArtRequest {
     }
 
     public Instant lastModified() {
-        return Optional.ofNullable(coverArt).map(c -> FileUtil.lastModified(c.getFullPath()))
+        return Optional.ofNullable(coverArt).filter(c -> Files.exists(c.getFullPath())).map(c -> FileUtil.lastModified(c.getFullPath()))
                 .orElseGet(lastModifiedGenerator);
     }
 

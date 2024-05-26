@@ -28,7 +28,6 @@ import org.airsonic.player.domain.PodcastStatus;
 import org.airsonic.player.service.MediaFileService;
 import org.airsonic.player.service.PodcastPersistenceService;
 import org.airsonic.player.service.SecurityService;
-import org.airsonic.player.service.SettingsService;
 import org.airsonic.player.service.VersionService;
 import org.airsonic.player.service.metadata.MetaData;
 import org.airsonic.player.service.metadata.MetaDataParser;
@@ -59,8 +58,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 @Service
@@ -82,9 +79,6 @@ public class PodcastDownloadClient {
     private VersionService versionService;
 
     @Autowired
-    private SettingsService settingsService;
-
-    @Autowired
     private SecurityService securityService;
 
     @Async("PodcastDownloadThreadPool")
@@ -97,7 +91,7 @@ public class PodcastDownloadClient {
         }
 
         PodcastEpisode episode = podcastPersistenceService.prepareDownloadEpisode(episodeId);
-        if (episode != null) {
+        if (episode != null && episode.getUrl() != null) {
             LOG.info("Starting to download Podcast from {}", episode.getUrl());
 
             PodcastChannel channel = episode.getChannel();
@@ -166,7 +160,7 @@ public class PodcastDownloadClient {
                     updateTags(file, episode);
                     episode.setStatus(PodcastStatus.COMPLETED);
                     podcastPersistenceService.updateEpisode(episode);
-                    deleteObsoleteEpisodes(channel);
+                    podcastPersistenceService.deleteObsoleteEpisodes(channel);
                 }
             } catch (Exception x) {
                 LOG.warn("Failed to download Podcast from {}", episode.getUrl(), x);
@@ -198,31 +192,6 @@ public class PodcastDownloadClient {
         }
     }
 
-    private synchronized void deleteObsoleteEpisodes(PodcastChannel channel) {
-        int episodeCount = Optional.ofNullable(channel)
-                .map(ch -> podcastPersistenceService.getChannelRule(ch.getId()))
-                .map(cr -> cr.getRetentionCount())
-                .orElse(settingsService.getPodcastEpisodeRetentionCount());
-        if (episodeCount == -1) {
-            return;
-        }
-
-        List<PodcastEpisode> episodes = podcastPersistenceService.getEpisodes(channel.getId());
-
-        // Don't do anything if other episodes of the same channel is currently
-        // downloading.
-        if (episodes.parallelStream().anyMatch(episode -> episode.getStatus() == PodcastStatus.DOWNLOADING)) {
-            return;
-        }
-
-        int numEpisodes = episodes.size();
-        int episodesToDelete = Math.max(0, numEpisodes - episodeCount);
-        // Delete in reverse to get chronological order (oldest episodes first).
-        for (int i = 0; i < episodesToDelete; i++) {
-            podcastPersistenceService.deleteEpisode(episodes.get(numEpisodes - 1 - i).getId(), true);
-            LOG.info("Deleted old Podcast episode {}", episodes.get(numEpisodes - 1 - i).getUrl());
-        }
-    }
 
     private synchronized Pair<Path, MusicFolder> createEpisodeFile(PodcastChannel channel, PodcastEpisode episode) {
         String filename = StringUtil.getUrlFile(PodcastUtil.sanitizeUrl(episode.getUrl(), true));

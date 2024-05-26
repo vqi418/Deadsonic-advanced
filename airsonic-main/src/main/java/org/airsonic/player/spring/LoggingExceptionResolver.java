@@ -25,10 +25,9 @@ public class LoggingExceptionResolver implements HandlerExceptionResolver, Order
         // This happens often and outside of the control of the server, so
         // we catch Tomcat/Jetty "connection aborted by client" exceptions
         // and display a short error message.
-        boolean shouldCatch = Util.isInstanceOfClassName(e, "org.apache.catalina.connector.ClientAbortException")
-                || Util.isInstanceOfClassName(e.getCause(), "org.apache.catalina.connector.ClientAbortException");
+        boolean shouldCatch = isClientAbortException(e);
         if (shouldCatch) {
-            LOG.info("{}: Client unexpectedly closed connection while loading {} ({})", request.getRemoteAddr(), Util.getAnonymizedURLForRequest(request), e.getCause().toString());
+            LOG.info("{}: Client unexpectedly closed connection while loading {}", request.getRemoteAddr(), Util.getAnonymizedURLForRequest(request));
             return null;
         }
 
@@ -40,5 +39,21 @@ public class LoggingExceptionResolver implements HandlerExceptionResolver, Order
     @Override
     public int getOrder() {
         return Integer.MIN_VALUE;
+    }
+
+    /**
+     * Check if the exception or any of its causes is a "client abort" exception.
+     *
+     * @param e The exception to check
+     * @return True if the exception or any of its causes is a "client abort" exception
+     */
+    private boolean isClientAbortException(Throwable e) {
+        if (e == null) {
+            return false;
+        }
+        if (Util.isInstanceOfClassName(e, "org.apache.catalina.connector.ClientAbortException")) {
+            return true;
+        }
+        return isClientAbortException(e.getCause());
     }
 }

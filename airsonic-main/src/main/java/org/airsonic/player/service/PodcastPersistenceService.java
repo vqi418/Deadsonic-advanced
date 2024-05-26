@@ -46,6 +46,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.annotation.Nonnull;
+import jakarta.annotation.Nullable;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -78,6 +81,7 @@ public class PodcastPersistenceService {
     private final PodcastEpisodeRepository podcastEpisodeRepository;
     private final PodcastRuleRepository podcastRuleRepository;
     private final SecurityService securityService;
+    private final SettingsService settingsService;
 
     private Predicate<PodcastEpisode> filterAllowed;
 
@@ -88,7 +92,8 @@ public class PodcastPersistenceService {
         AsyncWebSocketClient asyncSocketClient,
         PodcastChannelRepository podcastChannelRepository,
         PodcastEpisodeRepository podcastEpisodeRepository,
-        PodcastRuleRepository podcastRuleRepository
+        PodcastRuleRepository podcastRuleRepository,
+        SettingsService settingsService
     ) {
         this.mediaFileService = mediaFileService;
         this.mediaFolderService = mediaFolderService;
@@ -96,6 +101,7 @@ public class PodcastPersistenceService {
         this.podcastEpisodeRepository = podcastEpisodeRepository;
         this.podcastRuleRepository = podcastRuleRepository;
         this.securityService = securityService;
+        this.settingsService = settingsService;
         filterAllowed = episode -> episode.getMediaFile() == null
             || this.securityService.isReadAllowed(episode.getMediaFile(), false);
     }
@@ -378,6 +384,7 @@ public class PodcastPersistenceService {
                         // Refresh media file to check if it still exists
                         mediaFileService.refreshMediaFile(mediaFile);
                         if (!mediaFile.isPresent() && ep.getStatus() != PodcastStatus.DELETED) {
+                            LOG.info("Media file '{}' for episode '{}' is not present anymore. Setting episode status to deleted.", mediaFile.getId(), ep.getTitle());
                             // If media file is not present anymore, set episode status to deleted
                             ep.setStatus(PodcastStatus.DELETED);
                             ep.setErrorMessage(null);
@@ -524,6 +531,7 @@ public class PodcastPersistenceService {
             ep.setBytesDownloaded(episode.getBytesDownloaded());
             ep.setErrorMessage(episode.getErrorMessage());
             ep.setStatus(episode.getStatus());
+            ep.setLocked(episode.isLocked());
             return podcastEpisodeRepository.save(ep);
         }).orElseGet(() -> {
             LOG.warn("Podcast episode with id {} not found", episode.getId());
@@ -577,8 +585,14 @@ public class PodcastPersistenceService {
             });
     }
 
-    private void deleteEpisode(PodcastEpisode episode, boolean logicalDelete) {
+    private void deleteEpisode(@Nullable PodcastEpisode episode, boolean logicalDelete) {
         if (episode == null) {
+            return;
+        }
+
+        // Check if episode is locked
+        if (episode.getStatus() == PodcastStatus.COMPLETED && episode.isLocked()) {
+            LOG.info("Episode '{}' is locked and cannot be deleted", episode.getTitle());
             return;
         }
 
@@ -615,5 +629,86 @@ public class PodcastPersistenceService {
         return podcastEpisodeRepository.findByChannelAndTitleAndPublishDate(channel, title, date)
                 .filter(filterAllowed)
                 .orElse(null);
+    }
+
+    /**
+     * Deletes obsolete episodes for a given channel.
+     *
+     * @param channel The Podcast channel.
+     */
+    @Transactional
+    public synchronized void deleteObsoleteEpisodes(@Nullable PodcastChannel channel) {
+        int episodeCount = Optional.ofNullable(channel)
+                .flatMap(ch -> podcastRuleRepository.findById(ch.getId()))
+                .map(cr -> cr.getRetentionCount())
+                .orElse(settingsService.getPodcastEpisodeRetentionCount());
+        if (episodeCount == -1) {
+            return;
+        }
+
+        // Get all unlocked episodes of the channel
+        List<PodcastEpisode> episodes = getUnlockedEpisodes(channel);
+
+        // Don't do anything if other episodes of the same channel is currently
+        // downloading.
+        if (episodes.parallelStream().anyMatch(episode -> episode.getStatus() == PodcastStatus.DOWNLOADING)) {
+            return;
+        }
+
+        int numEpisodes = episodes.size();
+        int episodesToDelete = Math.max(0, numEpisodes - episodeCount);
+        // Delete in reverse to get chronological order (oldest episodes first).
+        for (int i = 0; i < episodesToDelete; i++) {
+            deleteEpisode(episodes.get(numEpisodes - 1 - i), true);
+            LOG.info("Deleted old Podcast episode {}", episodes.get(numEpisodes - 1 - i).getUrl());
+        }
+    }
+
+    /**
+     * Returns Unlocked Podcast episodes for a given channel.
+     *
+     * @param channel      The Podcast channel
+     * @return Possibly empty list of Unlocked Podcast episodes for the given channel, sorted in
+     *         reverse chronological order (newest episode first).
+     */
+    @Nonnull
+    private List<PodcastEpisode> getUnlockedEpisodes(PodcastChannel channel) {
+        if (Objects.isNull(channel)) return new ArrayList<>();
+        return podcastEpisodeRepository.findByChannelAndLockedFalse(channel).stream()
+            .filter(filterAllowed)
+            .sorted(Comparator.comparing(PodcastEpisode::getPublishDate, Comparator.nullsLast(Comparator.reverseOrder())))
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * Lock episode
+     *
+     * @param episodeId episode id to lock
+     */
+    @Transactional
+    public void lockEpisode(int episodeId) {
+        LOG.info("Locking episode with id {}", episodeId);
+        podcastEpisodeRepository.findById(episodeId).ifPresentOrElse(episode -> {
+            episode.setLocked(true);
+            podcastEpisodeRepository.save(episode);
+        }, () -> {
+            LOG.warn("Podcast episode with id {} not found", episodeId);
+        });
+    }
+
+    /**
+     * Unlock episode
+     *
+     * @param episodeId episode id to unlock
+     */
+    @Transactional
+    public void unlockEpisode(int episodeId) {
+        LOG.info("Unlocking episode with id {}", episodeId);
+        podcastEpisodeRepository.findById(episodeId).ifPresentOrElse(episode -> {
+            episode.setLocked(false);
+            podcastEpisodeRepository.save(episode);
+        }, () -> {
+            LOG.warn("Podcast episode with id {} not found", episodeId);
+        });
     }
 }

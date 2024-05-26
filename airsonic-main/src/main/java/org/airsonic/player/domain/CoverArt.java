@@ -49,15 +49,15 @@ public class CoverArt {
     @Column(name = "updated")
     private Instant updated = created;
 
-    @OneToOne(fetch = FetchType.LAZY)
+    @OneToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "entity_id", insertable = false, updatable = false)
     private Artist artist;
 
-    @OneToOne(fetch = FetchType.LAZY)
+    @OneToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "entity_id", insertable = false, updatable = false)
     private Album album;
 
-    @OneToOne(fetch = FetchType.LAZY)
+    @OneToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "entity_id", insertable = false, updatable = false)
     private MediaFile mediaFile;
 

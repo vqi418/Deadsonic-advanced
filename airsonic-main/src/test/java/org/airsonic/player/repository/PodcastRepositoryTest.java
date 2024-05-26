@@ -176,6 +176,31 @@ public class PodcastRepositoryTest {
         assertEpisodeEquals(d, episodes.get(3));
     }
 
+    @Test
+    public void testGetUnlockedEpisodes() {
+        PodcastChannel channel = createChannel();
+        PodcastEpisode a = new PodcastEpisode(null, channel, UUID.randomUUID().toString(), "a", null, null, null,
+                Instant.ofEpochMilli(3000), null, null, null, PodcastStatus.NEW, null);
+        PodcastEpisode b = new PodcastEpisode(null, channel, UUID.randomUUID().toString(), "b", null, null, null,
+                Instant.ofEpochMilli(1000), null, null, null, PodcastStatus.NEW, "error");
+        PodcastEpisode c = new PodcastEpisode(null, channel, UUID.randomUUID().toString(), "c", null, null, null,
+                Instant.ofEpochMilli(2000), null, null, null, PodcastStatus.NEW, null);
+        PodcastEpisode d = new PodcastEpisode(null, channel, UUID.randomUUID().toString(), "c", null, null, null,
+                null, null, null, null, PodcastStatus.NEW, "");
+        d.setLocked(true);
+        podcastEpisodeRepository.save(a);
+        podcastEpisodeRepository.save(b);
+        podcastEpisodeRepository.save(c);
+        podcastEpisodeRepository.save(d);
+
+        channel = podcastChannelRepository.findById(channel.getId()).get();
+        List<PodcastEpisode> episodes = podcastEpisodeRepository.findByChannelAndLockedFalse(channel);
+        assertEquals(3, episodes.size());
+        assertEpisodeEquals(a, episodes.get(0));
+        assertEpisodeEquals(b, episodes.get(1));
+        assertEpisodeEquals(c, episodes.get(2));
+    }
+
 
     @Test
     public void testUpdateEpisode() {

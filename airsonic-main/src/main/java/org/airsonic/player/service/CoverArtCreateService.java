@@ -191,7 +191,7 @@ public class CoverArtCreateService {
      * @return the cover art request
      */
     @Nullable
-    public CoverArtRequest createMediaFileCoverArtRequest(MediaFile mediaFile, int offset) {
+    public CoverArtRequest createMediaFileCoverArtRequest(@Nullable MediaFile mediaFile, int offset) {
         if (mediaFile == null) {
             return null;
         }
@@ -199,6 +199,9 @@ public class CoverArtCreateService {
             return new VideoCoverArtRequest(mediaFile, offset);
         }
         MediaFile dir = mediaFile.isDirectory() ? mediaFile : mediaFileService.getParentOf(mediaFile);
+        if (dir == null || !dir.isExist()) {
+            return null;
+        }
         CoverArt coverArt = coverArtService.getMediaFileArt(dir.getId());
         return new MediaFileCoverArtRequest(coverArt, dir, mediaFile.isDirectory() ? null : mediaFile.getId());
     }
@@ -300,6 +303,7 @@ public class CoverArtCreateService {
      * audio file,
      * the embedded album art is returned.
      */
+    @Nullable
     private InputStream getImageInputStream(CoverArt art) throws IOException {
         return getImageInputStreamWithType(art.getFullPath()).getLeft();
     }
@@ -310,24 +314,22 @@ public class CoverArtCreateService {
      * the embedded album art is returned. In addition returns the mime type
      */
     public Pair<InputStream, String> getImageInputStreamWithType(Path file) throws IOException {
-        InputStream is;
-        String mimeType;
-        if (JaudiotaggerParser.isImageAvailable(file)) {
-            LOG.trace("Using Jaudio Tagger for reading artwork from {}", file);
-            try {
-                LOG.trace("Reading artwork from file {}", file);
+        try {
+            if (JaudiotaggerParser.isImageAvailable(file)) {
+                LOG.trace("Using Jaudio Tagger for reading artwork from {}", file);
                 Artwork artwork = JaudiotaggerParser.getArtwork(file);
-                is = new ByteArrayInputStream(artwork.getBinaryData());
-                mimeType = artwork.getMimeType();
-            } catch (Exception e) {
-                LOG.debug("Could not read artwork from file {}", file);
-                throw new RuntimeException(e);
+                return Pair.of(new ByteArrayInputStream(artwork.getBinaryData()), artwork.getMimeType());
+            } else {
+                LOG.trace("Reading artwork from file {}", file);
+                return Pair.of(
+                    new BufferedInputStream(Files.newInputStream(file)),
+                    StringUtil.getMimeType(FilenameUtils.getExtension(file.toString()))
+                );
             }
-        } else {
-            is = new BufferedInputStream(Files.newInputStream(file));
-            mimeType = StringUtil.getMimeType(FilenameUtils.getExtension(file.toString()));
+        } catch (Exception e) {
+            LOG.debug("Could not read artwork from file {}", file);
+            return Pair.of(null, null);
         }
-        return Pair.of(is, mimeType);
     }
 
     private InputStream getImageInputStreamForVideo(MediaFile mediaFile, int width, int height, int offset)

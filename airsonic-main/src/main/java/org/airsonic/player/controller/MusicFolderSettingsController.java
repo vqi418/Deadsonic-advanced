@@ -125,32 +125,35 @@ public class MusicFolderSettingsController {
         // to be before dao#expunge
         MediaLibraryStatistics statistics = indexManager.getStatistics();
         if (statistics != null) {
-            LOG.debug("Cleaning search index...");
-            indexManager.startIndexing();
-            indexManager.expunge();
-            indexManager.stopIndexing(statistics);
-            LOG.debug("Search index cleanup complete.");
+            LOG.info("Cleaning search index...");
+            if (indexManager.startIndexing()) {
+                indexManager.expunge();
+                indexManager.stopIndexing(statistics);
+                LOG.info("Search index cleanup complete.");
+            } else {
+                LOG.info("Search index is currently being updated. Skipping cleanup.");
+            }
         } else {
             LOG.warn("Missing index statistics - index probably hasn't been created yet. Not expunging index.");
         }
 
-        LOG.debug("Cleaning database...");
-        LOG.debug("Deleting non-present artists...");
-        artistService.expunge();
-        LOG.debug("Deleting non-present albums...");
-        albumService.expunge();
-        LOG.debug("Deleting non-present media files...");
-        mediaFileService.expunge();
-        LOG.debug("Deleting non-present cover art...");
+        LOG.info("Cleaning database...");
+        LOG.info("Deleting non-present cover art...");
         coverArtService.expunge();
-        LOG.debug("Deleting non-present media folders...");
+        LOG.info("Deleting non-present artists...");
+        artistService.expunge();
+        LOG.info("Deleting non-present albums...");
+        albumService.expunge();
+        LOG.info("Deleting non-present media files...");
+        mediaFileService.expunge();
+        LOG.info("Deleting non-present media folders...");
         mediaFolderService.expunge();
-        LOG.debug("Refreshing playlist stats...");
+        LOG.info("Refreshing playlist stats...");
         List<Playlist> playlists = playlistService.refreshPlaylistsStats();
         playlists.forEach(p -> {
             playlistService.broadcastFileChange(p.getId(), false, false);
         });
-        LOG.debug("Database cleanup complete.");
+        LOG.info("Database cleanup complete.");
     }
 
     private List<MusicFolderSettingsCommand.MusicFolderInfo> wrap(List<MusicFolder> musicFolders) {
