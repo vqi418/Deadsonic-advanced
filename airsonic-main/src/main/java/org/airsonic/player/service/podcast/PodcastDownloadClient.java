@@ -48,6 +48,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.AdviceMode;
+import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.stereotype.Service;
@@ -118,12 +119,18 @@ public class PodcastDownloadClient {
                     InputStream in = response.getEntity().getContent();
                     OutputStream out = new BufferedOutputStream(Files.newOutputStream(filePath))) {
 
+                // Check if the server responded with a 200 OK status code.
+                if (response.getStatusLine().getStatusCode() != HttpStatus.OK.value()) {
+                    throw new IOException("Failed to download Podcast from " + episode.getUrl() + ". Status code: "
+                            + response.getStatusLine().getStatusCode());
+                }
+
                 episode.setBytesDownloaded(0L);
                 episode.setErrorMessage(null);
                 podcastPersistenceService.updateEpisode(episode);
 
+                long bytesDownloaded = 0L;
                 byte[] buffer = new byte[8192];
-                long bytesDownloaded = 0;
                 int n;
                 long nextLogCount = 30000L;
 
@@ -132,41 +139,45 @@ public class PodcastDownloadClient {
                     bytesDownloaded += n;
 
                     if (bytesDownloaded > nextLogCount) {
-                        episode.setBytesDownloaded(bytesDownloaded);
-                        nextLogCount += 30000L;
-
                         // Abort download if episode was deleted by user.
                         if (podcastPersistenceService.isEpisodeDeleted(episodeId)) {
                             break;
                         }
+                        episode.setBytesDownloaded(bytesDownloaded);
                         podcastPersistenceService.updateEpisode(episode);
+                        nextLogCount += 30000L;
                     }
                 }
-
-                if (podcastPersistenceService.isEpisodeDeleted(episodeId)) {
-                    LOG.info("Podcast {} was deleted. Aborting download.", episode.getUrl());
-                    FileUtil.closeQuietly(out);
-                    FileUtil.delete(filePath);
-                } else {
-                    FileUtil.closeQuietly(out);
-                    episode.setBytesDownloaded(bytesDownloaded);
-                    LOG.info("Downloaded {} bytes from Podcast {}", bytesDownloaded, episode.getUrl());
-                    MediaFile file = mediaFileService.getMediaFile(relativeFile, folder);
-                    episode.setMediaFile(file);
-                    // Parser may not be able to determine duration for some formats.
-                    if (file.getDuration() == null) {
-                        throw new RuntimeException("Failed to get duration for " + file);
-                    }
-                    updateTags(file, episode);
-                    episode.setStatus(PodcastStatus.COMPLETED);
-                    podcastPersistenceService.updateEpisode(episode);
-                    podcastPersistenceService.deleteObsoleteEpisodes(channel);
-                }
+                episode.setBytesDownloaded(bytesDownloaded);
+                LOG.info("Downloaded {} bytes from Podcast {}", bytesDownloaded, episode.getUrl());
             } catch (Exception x) {
                 LOG.warn("Failed to download Podcast from {}", episode.getUrl(), x);
                 episode.setStatus(PodcastStatus.ERROR);
                 episode.setErrorMessage(PodcastUtil.getErrorMessage(x));
                 podcastPersistenceService.updateEpisode(episode);
+                return result;
+            }
+
+            // Abort download if episode was deleted by user.
+            if (podcastPersistenceService.isEpisodeDeleted(episodeId)) {
+                LOG.info("Podcast {} was deleted. Aborting download.", episode.getUrl());
+                FileUtil.delete(filePath);
+            } else {
+                MediaFile file = mediaFileService.getMediaFile(relativeFile, folder);
+                episode.setMediaFile(file);
+                // Parser may not be able to determine duration for some formats.
+                if (file.getDuration() == null) {
+                    String errorMessage = "Failed to get duration for " + file;
+                    LOG.warn(errorMessage);
+                    episode.setStatus(PodcastStatus.ERROR);
+                    episode.setErrorMessage(errorMessage);
+                    podcastPersistenceService.updateEpisode(episode);
+                } else {
+                    updateTags(file, episode);
+                    episode.setStatus(PodcastStatus.COMPLETED);
+                    podcastPersistenceService.updateEpisode(episode);
+                    podcastPersistenceService.deleteObsoleteEpisodes(channel);
+                }
             }
         } else {
             LOG.info("Episode with id {} not found", episodeId);

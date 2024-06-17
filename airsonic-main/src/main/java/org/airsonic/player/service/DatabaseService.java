@@ -1,16 +1,49 @@
+/*
+ This file is part of Airsonic.
+
+ Airsonic is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+
+ Airsonic is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with Airsonic.  If not, see <http://www.gnu.org/licenses/>.
+
+ Copyright 2024 (C) Y.Tory
+ Copyright 2016 (C) Airsonic Authors
+ Based upon Subsonic, Copyright 2009 (C) Sindre Mehus
+ */
 package org.airsonic.player.service;
 
-import liquibase.Contexts;
-import liquibase.Liquibase;
+import liquibase.CatalogAndSchema;
+import liquibase.Scope;
+import liquibase.Scope.ScopedRunner;
+import liquibase.changelog.ChangeLogParameters;
 import liquibase.command.CommandScope;
-import liquibase.command.core.InternalExecuteSqlCommandStep;
+import liquibase.command.core.DiffChangelogCommandStep;
+import liquibase.command.core.DiffCommandStep;
+import liquibase.command.core.ExecuteSqlCommandStep;
+import liquibase.command.core.GenerateChangelogCommandStep;
+import liquibase.command.core.UpdateCommandStep;
+import liquibase.command.core.helpers.DatabaseChangelogCommandStep;
+import liquibase.command.core.helpers.DbUrlConnectionArgumentsCommandStep;
+import liquibase.command.core.helpers.DiffOutputControlCommandStep;
+import liquibase.command.core.helpers.PreCompareCommandStep;
+import liquibase.command.core.helpers.ReferenceDbUrlConnectionCommandStep;
 import liquibase.database.Database;
 import liquibase.database.DatabaseConnection;
 import liquibase.database.DatabaseFactory;
 import liquibase.database.jvm.JdbcConnection;
+import liquibase.diff.compare.CompareControl;
 import liquibase.diff.output.DiffOutputControl;
 import liquibase.diff.output.StandardObjectChangeFilter;
-import liquibase.integration.commandline.CommandLineUtils;
+import liquibase.exception.CommandExecutionException;
+import liquibase.exception.LiquibaseException;
 import liquibase.resource.DirectoryResourceAccessor;
 import org.airsonic.player.config.AirsonicHomeConfig;
 import org.airsonic.player.dao.DatabaseDao;
@@ -26,7 +59,9 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
+import javax.xml.parsers.ParserConfigurationException;
 
+import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -41,6 +76,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -108,7 +144,8 @@ public class DatabaseService {
 
         if (backuppable()) {
             try {
-                String dbPath = StringUtils.substringBetween(settingsService.getDatabaseUrl(), "jdbc:hsqldb:file:", ";");
+                String dbPath = StringUtils.substringBetween(settingsService.getDatabaseUrl(), "jdbc:hsqldb:file:",
+                        ";");
                 Path backupLocation = LegacyHsqlMigrationUtil.performHsqlDbBackup(dbPath);
                 LOG.info("Backed up DB to location: {}", backupLocation);
                 brokerTemplate.convertAndSend("/topic/backupStatus", "location: " + backupLocation);
@@ -132,7 +169,8 @@ public class DatabaseService {
         try (Stream<Path> backups = Files.list(backupLocation.getParent());) {
             backups.filter(p -> p.getFileName().toString().startsWith(backupNamePattern))
                     .sorted(Comparator.comparing(
-                            LambdaUtils.<Path, FileTime, Exception>uncheckFunction(p -> Files.readAttributes(p, BasicFileAttributes.class).creationTime()),
+                            LambdaUtils.<Path, FileTime, Exception>uncheckFunction(
+                                    p -> Files.readAttributes(p, BasicFileAttributes.class).creationTime()),
                             Comparator.reverseOrder()))
                     .forEach(p -> {
                         if (backupCount.getAndDecrement() <= 0) {
@@ -149,10 +187,11 @@ public class DatabaseService {
                 && StringUtils.startsWith(settingsService.getDatabaseUrl(), "jdbc:hsqldb:file:");
     }
 
-    ThrowingBiFunction<Path, Connection, Boolean, Exception> exportFunction = (tmpPath, connection) -> generateChangeLog(tmpPath, connection, "data", "airsonic-data", makeDiffOutputControl());
+    ThrowingBiFunction<Path, Connection, Boolean, Exception> exportFunction = (tmpPath,
+            connection) -> generateChangeLog(tmpPath, connection, "data", "airsonic-data", makeDiffOutputControl());
 
     Function<Path, Consumer<Connection>> importFunction = p -> LambdaUtils.uncheckConsumer(
-        connection -> runLiquibaseUpdate(connection, p));
+            connection -> runLiquibaseUpdate(connection, p));
 
     public synchronized Path exportDB() throws Exception {
         brokerTemplate.convertAndSend("/topic/exportStatus", "started");
@@ -212,24 +251,29 @@ public class DatabaseService {
 
     private void runLiquibaseUpdate(Connection connection, Path p) throws Exception {
         Database database = getDatabase(connection);
-        truncateAll(database, connection);
+        truncateAll(database);
+        Map<String, Object> scopeObjects = Map.of(
+                Scope.Attr.database.name(), database,
+                Scope.Attr.resourceAccessor.name(), new DirectoryResourceAccessor(p.toFile()));
         try (Stream<Path> files = Files.list(p)) {
             files.sorted().forEach(LambdaUtils.uncheckConsumer(f -> {
-                try (Liquibase liquibase = new Liquibase(p.relativize(f).toString(), new DirectoryResourceAccessor(p.toFile()), database)) {
-                    liquibase.update(new Contexts());
-                }
+                Scope.child(scopeObjects, (ScopedRunner<?>) () -> new CommandScope(UpdateCommandStep.COMMAND_NAME)
+                        .addArgumentValue(DbUrlConnectionArgumentsCommandStep.DATABASE_ARG, database)
+                        .addArgumentValue(UpdateCommandStep.CHANGELOG_FILE_ARG, p.relativize(f).toString())
+                        .addArgumentValue(DatabaseChangelogCommandStep.CHANGELOG_PARAMETERS,
+                                new ChangeLogParameters(database))
+                        .execute());
             }));
         }
     }
 
-    private static void truncateAll(Database db, Connection c) throws Exception {
+    private static void truncateAll(Database db) throws Exception {
         String sql = TABLE_ORDER.stream().flatMap(t -> t.stream())
                 .map(t -> "delete from " + t).collect(joining("; "));
-        CommandScope commandScope = new CommandScope("internalExecuteSql");
-        commandScope.addArgumentValue(InternalExecuteSqlCommandStep.DATABASE_ARG, db);
-        commandScope.addArgumentValue(InternalExecuteSqlCommandStep.SQL_ARG, sql);
-        commandScope.addArgumentValue(InternalExecuteSqlCommandStep.DELIMITER_ARG, ";");
-
+        CommandScope commandScope = new CommandScope(ExecuteSqlCommandStep.COMMAND_NAME);
+        commandScope.addArgumentValue(ExecuteSqlCommandStep.SQL_ARG, sql);
+        commandScope.addArgumentValue(ExecuteSqlCommandStep.DELIMITER_ARG, ";");
+        commandScope.addArgumentValue(DbUrlConnectionArgumentsCommandStep.DATABASE_ARG, db);
         commandScope.execute();
     }
 
@@ -245,13 +289,14 @@ public class DatabaseService {
             Arrays.asList("podcast_channel_rules", "podcast_episode", "bookmark", "share_file", "sonoslink"),
             Arrays.asList("starred_album", "starred_artist", "starred_media_file", "user_rating", "custom_avatar"));
 
-    private boolean generateChangeLog(Path fPath, Connection connection, String snapshotTypes, String author, DiffOutputControl diffOutputControl) throws Exception {
+    private boolean generateChangeLog(Path fPath, Connection connection, String snapshotTypes, String author,
+            DiffOutputControl diffOutputControl) throws Exception {
         Database database = getDatabase(connection);
         Files.createDirectories(fPath);
         for (int i = 0; i < TABLE_ORDER.size(); i++) {
             setTableFilter(diffOutputControl, TABLE_ORDER.get(i));
-            CommandLineUtils.doGenerateChangeLog(fPath.resolve(i + ".xml").toString(), database, null, null,
-                    snapshotTypes, author, null, null, diffOutputControl);
+            doGenerateChangeLog(fPath.resolve(i + ".xml").toString(), database, snapshotTypes, author,
+                    diffOutputControl);
         }
 
         return true;
@@ -283,5 +328,61 @@ public class DatabaseService {
                 StandardObjectChangeFilter.FilterType.INCLUDE,
                 tables.stream().map(t -> MessageFormat.format("table:(?i){0}", t)).collect(joining(",")));
         diffOutputControl.setObjectChangeFilter(filter);
+    }
+
+    /**
+     * Generate a change log for the given database.
+     * this method is customized to generate a change log for a specific set of
+     * tables
+     * {@link liquibase.integration.commandline.CommandLineUtils#doGenerateChangeLog(String,
+     * Database, String, String, String, String, String, DiffOutputControl)}
+     *
+     * @param changeLogFile     the file to write the change log to
+     * @param originalDatabase  the original database to compare to
+     * @param snapshotTypes     the types of snapshots to take
+     * @param author            the author to use for the change log
+     * @param diffOutputControl the output control to use
+     * @throws IOException
+     * @throws ParserConfigurationException
+     * @throws LiquibaseException
+     */
+    private void doGenerateChangeLog(String changeLogFile, Database originalDatabase,
+            String snapshotTypes, String author, DiffOutputControl diffOutputControl)
+            throws IOException, ParserConfigurationException,
+            LiquibaseException {
+        CatalogAndSchema[] schemas = new CatalogAndSchema[] { new CatalogAndSchema(null, null) };
+        CompareControl.SchemaComparison[] comparisons = new CompareControl.SchemaComparison[schemas.length];
+        int i = 0;
+        for (CatalogAndSchema schema : schemas) {
+            comparisons[i++] = new CompareControl.SchemaComparison(schema, schema);
+        }
+        CompareControl compareControl = new CompareControl(comparisons, snapshotTypes);
+        CommandScope command = new CommandScope("generateChangeLog");
+        command
+                .addArgumentValue(ReferenceDbUrlConnectionCommandStep.REFERENCE_DATABASE_ARG, originalDatabase)
+                .addArgumentValue(DbUrlConnectionArgumentsCommandStep.DATABASE_ARG, originalDatabase)
+                .addArgumentValue(PreCompareCommandStep.SNAPSHOT_TYPES_ARG,
+                        DiffCommandStep.parseSnapshotTypes(snapshotTypes))
+                .addArgumentValue(PreCompareCommandStep.COMPARE_CONTROL_ARG, compareControl)
+                .addArgumentValue(PreCompareCommandStep.OBJECT_CHANGE_FILTER_ARG,
+                        diffOutputControl.getObjectChangeFilter())
+                .addArgumentValue(DiffChangelogCommandStep.CHANGELOG_FILE_ARG, changeLogFile)
+                .addArgumentValue(DiffOutputControlCommandStep.INCLUDE_CATALOG_ARG,
+                        diffOutputControl.getIncludeCatalog())
+                .addArgumentValue(DiffOutputControlCommandStep.INCLUDE_SCHEMA_ARG, diffOutputControl.getIncludeSchema())
+                .addArgumentValue(DiffOutputControlCommandStep.INCLUDE_TABLESPACE_ARG,
+                        diffOutputControl.getIncludeTablespace())
+                .addArgumentValue(GenerateChangelogCommandStep.AUTHOR_ARG, author);
+
+        if (diffOutputControl.isReplaceIfExistsSet()) {
+            command.addArgumentValue(GenerateChangelogCommandStep.USE_OR_REPLACE_OPTION, true);
+        }
+        command.setOutput(System.out);
+        try {
+            command.execute();
+        } catch (CommandExecutionException e) {
+            throw new LiquibaseException(e);
+        }
+
     }
 }

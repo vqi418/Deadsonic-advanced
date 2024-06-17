@@ -14,6 +14,7 @@
  You should have received a copy of the GNU General Public License
  along with Airsonic.  If not, see <http://www.gnu.org/licenses/>.
 
+ Copyright 2024 (C) Y.Tory
  Copyright 2016 (C) Airsonic Authors
  Based upon Subsonic, Copyright 2009 (C) Sindre Mehus
  */
@@ -38,7 +39,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
 import java.util.Arrays;
@@ -63,6 +63,8 @@ public class FolderBasedContentDirectory extends CustomContentDirectory {
     private PlaylistService playlistService;
     @Autowired
     private IndexManager indexManager;
+    @Autowired
+    private UpnpUtil upnpUtil;
 
     @Override
     public BrowseResult browse(String objectId, BrowseFlag browseFlag, String filter, long firstResult,
@@ -212,9 +214,9 @@ public class FolderBasedContentDirectory extends CustomContentDirectory {
         if (song.getGenre() != null) {
             item.setGenres(new String[]{song.getGenre()});
         }
-        item.setResources(Arrays.asList(createResourceForSong(song)));
+        item.setResources(Arrays.asList(upnpUtil.createResourceForSong(song)));
         item.setDescription(song.getComment());
-        item.addProperty(new DIDLObject.Property.UPNP.ALBUM_ART_URI(getAlbumArtUrl(parent)));
+        item.addProperty(new DIDLObject.Property.UPNP.ALBUM_ART_URI(upnpUtil.getAlbumArtURI(parent.getId())));
 
         return item;
     }
@@ -238,7 +240,7 @@ public class FolderBasedContentDirectory extends CustomContentDirectory {
 
     private Container createAlbumContainer(MediaFile album) {
         MusicAlbum container = new MusicAlbum();
-        container.setAlbumArtURIs(new URI[]{getAlbumArtUrl(album)});
+        container.setAlbumArtURIs(new URI[]{upnpUtil.getAlbumArtURI(album.getId())});
 
         // TODO: correct artist?
         if (album.getArtist() != null) {
@@ -271,24 +273,4 @@ public class FolderBasedContentDirectory extends CustomContentDirectory {
         return container;
     }
 
-    private URI getAlbumArtUrl(MediaFile album) {
-        return UriComponentsBuilder
-                .fromUriString(getBaseUrl())
-                .uriComponents(jwtSecurityService
-                        .addJWTToken(
-                                User.USERNAME_ANONYMOUS,
-                                UriComponentsBuilder.fromUriString("ext/coverArt.view")
-                                        .queryParam("id", album.getId())
-                                        .queryParam("size", CoverArtScheme.LARGE.getSize()))
-                        .build())
-                .build().encode().toUri();
-    }
-
-    public void setMediaFileService(MediaFileService mediaFileService) {
-        this.mediaFileService = mediaFileService;
-    }
-
-    public void setPlaylistService(PlaylistService playlistService) {
-        this.playlistService = playlistService;
-    }
 }

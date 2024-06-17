@@ -14,6 +14,7 @@
   You should have received a copy of the GNU General Public License
   along with Airsonic.  If not, see <http://www.gnu.org/licenses/>.
 
+  Copyright 2024 (C) Y.Tory
   Copyright 2017 (C) Airsonic Authors
   Based upon Subsonic, Copyright 2009 (C) Sindre Mehus
 */
@@ -22,12 +23,15 @@ package org.airsonic.player.service.upnp;
 import org.airsonic.player.domain.Genre;
 import org.airsonic.player.domain.MediaFile;
 import org.airsonic.player.domain.MusicFolder;
+import org.airsonic.player.service.MediaFileService;
+import org.airsonic.player.service.MediaFolderService;
 import org.airsonic.player.util.Util;
 import org.fourthline.cling.support.model.BrowseResult;
 import org.fourthline.cling.support.model.DIDLContent;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.container.GenreContainer;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -40,9 +44,18 @@ import java.util.List;
 public class GenreUpnpProcessor extends UpnpContentProcessor <Genre, MediaFile> {
 
     public GenreUpnpProcessor() {
-        setRootId(DispatchingContentDirectory.CONTAINER_ID_GENRE_PREFIX);
+        setRootId(ProcessorType.GENRE);
         setRootTitle("Genres");
     }
+
+    @Autowired
+    private UpnpProcessorRouter router;
+
+    @Autowired
+    private MediaFileService mediaFileService;
+
+    @Autowired
+    private MediaFolderService mediaFolderService;
 
     /**
      * Browses the top-level content of a type.
@@ -84,7 +97,7 @@ public class GenreUpnpProcessor extends UpnpContentProcessor <Genre, MediaFile> 
 
     @Override
     public List<Genre> getAllItems() {
-        return getDispatcher().getMediaFileService().getGenres(false);
+        return mediaFileService.getGenres(false);
     }
 
     @Override
@@ -99,12 +112,12 @@ public class GenreUpnpProcessor extends UpnpContentProcessor <Genre, MediaFile> 
 
     @Override
     public List<MediaFile> getChildren(Genre item) {
-        List<MusicFolder> allFolders = getDispatcher().getMediaFolderService().getAllMusicFolders();
-        return getDispatcher().getMediaFileProcessor().getMediaFileService().getSongsByGenre(0, Integer.MAX_VALUE, item.getName(), allFolders);
+        List<MusicFolder> allFolders = mediaFolderService.getAllMusicFolders();
+        return mediaFileService.getSongsByGenre(0, Integer.MAX_VALUE, item.getName(), allFolders);
     }
 
     @Override
     public void addChild(DIDLContent didl, MediaFile child) {
-        didl.addItem(getDispatcher().getMediaFileProcessor().createItem(child));
+        didl.addItem(router.getMediaFileProcessor().createItem(child));
     }
 }

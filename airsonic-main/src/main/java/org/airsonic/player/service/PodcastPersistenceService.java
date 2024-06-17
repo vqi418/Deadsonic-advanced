@@ -170,8 +170,9 @@ public class PodcastPersistenceService {
      * @param element element to update from
      * @return updated channel or original channel if element is null
      */
+    @Nullable
     @Transactional
-    public PodcastChannel updateChannelByElement(PodcastChannel channel, Element element) {
+    public PodcastChannel updateChannelByElement(@Nonnull PodcastChannel channel, @Nullable Element element) {
         if (element == null) {
             return channel;
         }
@@ -707,6 +708,31 @@ public class PodcastPersistenceService {
         podcastEpisodeRepository.findById(episodeId).ifPresentOrElse(episode -> {
             episode.setLocked(false);
             podcastEpisodeRepository.save(episode);
+        }, () -> {
+            LOG.warn("Podcast episode with id {} not found", episodeId);
+        });
+    }
+
+
+    @Transactional
+    public void resetEpisode(Integer episodeId) {
+        podcastEpisodeRepository.findById(episodeId).ifPresentOrElse(episode -> {
+            switch (episode.getStatus()) {
+                case DELETED:
+                    episode.setLocked(true); // prevent to be deleted again
+                    episode.setStatus(PodcastStatus.NEW);
+                    episode.setErrorMessage(null);
+                    podcastEpisodeRepository.save(episode);
+                    break;
+                case COMPLETED:
+                    episode.setStatus(PodcastStatus.NEW);
+                    episode.setErrorMessage(null);
+                    podcastEpisodeRepository.save(episode);
+                    break;
+                default:
+                    LOG.warn("Episode '{}' is not in a state that can be reset", episode.getTitle());
+                    break;
+            }
         }, () -> {
             LOG.warn("Podcast episode with id {} not found", episodeId);
         });

@@ -179,7 +179,7 @@
 <table class="music">
         <tr>
             <th class="fit center"><input type="checkbox" id="episodessa" value="all"/></th>
-            <th colspan="5"></th>
+            <th colspan="6"></th>
             <th class="truncate left" th:text="#{podcastreceiver.episode}"></th>
             <th class="fit center" th:text="#{personalsettings.duration}"></th>
             <th class="fit left" th:text="#{podcastreceiver.published}"></th>
@@ -204,16 +204,35 @@
                         podcastId=${episode.id}
                     )}" />
             </th:block>
-            <td class="fit center">
-                <th:block th:if="${episode.locked}">
-                <span><i data-feather="lock" role="img" th:aria-label="#{podcastreceiver.locked}"
-                        th:title="#{podcastreceiver.locked}" class="feather-sm"></i></span>
-                </th:block>
-                <th:block th:if="${!episode.locked && (episode.status.name eq 'COMPLETED' or episode.status.name eq 'SKIPPED')}">
-                <span><i data-feather="unlock" role="img" th:aria-label="#{podcastreceiver.unlocked}"
-                        th:title="#{podcastreceiver.unlocked}" class="feather-sm feather-weak"></i></span>
-                </th:block>
-            </td>
+            <td colspan="2" th:unless="${command.user.podcastRole}"></td>
+            <form th:action="@{/podcastEpisodes}" method="post"
+                th:if="${command.user.podcastRole}"
+                th:name="'formEpisode' + ${episode.id}">
+                <input type="hidden" id="episodeId" name="episodeId" th:value="${episode.id}" />
+                <td class="fit center">
+                    <th:block th:if="${episode.locked}">
+                        <input type="submit" name="unlock" style="display: none;" />
+                        <a th:href="'javascript:document.formEpisode' + ${episode.id} + '.unlock.click()'"><i data-feather="lock" role="img" th:aria-label="#{podcastreceiver.locked}"
+                                th:title="#{podcastreceiver.locked}" class="feather-sm"></i></a>
+                    </th:block>
+                    <th:block th:if="${!episode.locked && #lists.contains({'COMPLETED', 'SKIPPED', 'NEW'}, episode.status.name)}">
+                        <input type="submit" name="lock" style="display: none;" />
+                        <a th:href="'javascript:document.formEpisode' + ${episode.id} + '.lock.click()'"><i data-feather="unlock" role="img" th:aria-label="#{podcastreceiver.unlocked}"
+                            th:title="#{podcastreceiver.unlocked}" class="feather-sm feather-weak"></i></a>
+                    </th:block>
+                </td>
+                <td class="fit center" th:if="${#lists.contains({'COMPLETED', 'DELETED'}, episode.status.name)}">
+                        <input type="submit" name="init" style="display: none;" />
+                        <a th:href="'javascript:document.formEpisode' + ${episode.id} + '.init.click()'"><i data-feather="rotate-ccw" role="img" th:aria-label="#{podcastreceiver.reset}"
+                                th:title="#{podcastreceiver.reset}" class="feather-sm"></i></a>
+                </td>
+                <td class="fit center" th:if="${#lists.contains({'SKIPPED', 'NEW', 'ERROR'}, episode.status.name)}">
+                        <input type="submit" name="download" style="display: none;" />
+                        <a th:href="'javascript:document.formEpisode' + ${episode.id} + '.download.click()'"><i data-feather="download-cloud" role="img" th:aria-label="#{common.download}"
+                                th:title="#{common.download}" class="feather-sm"></i></a>
+                </td>
+                <td th:if="${'DOWNLOADING' eq episode.status.name}"></td>
+            </form>
             <td class="truncate">
                     <span th:title="${episode.title}" class="songTitle" th:text="${episode.title}"></span>
             </td>

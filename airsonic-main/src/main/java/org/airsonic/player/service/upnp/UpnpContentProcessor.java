@@ -14,14 +14,12 @@
   You should have received a copy of the GNU General Public License
   along with Airsonic.  If not, see <http://www.gnu.org/licenses/>.
 
+  Copyright 2024 (C) Y.Tory
   Copyright 2017 (C) Airsonic Authors
   Based upon Subsonic, Copyright 2009 (C) Sindre Mehus
 */
 package org.airsonic.player.service.upnp;
 
-import com.google.common.primitives.Ints;
-import org.airsonic.player.domain.MusicFolder;
-import org.airsonic.player.domain.ParamSearchResult;
 import org.airsonic.player.util.Util;
 import org.fourthline.cling.support.contentdirectory.DIDLParser;
 import org.fourthline.cling.support.model.BrowseResult;
@@ -29,9 +27,7 @@ import org.fourthline.cling.support.model.DIDLContent;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.container.StorageFolder;
-import org.springframework.beans.factory.annotation.Autowired;
 
-import java.lang.reflect.ParameterizedType;
 import java.util.List;
 
 /**
@@ -40,11 +36,8 @@ import java.util.List;
  */
 public abstract class UpnpContentProcessor<T extends Object, U extends Object> {
 
-    @Autowired
-    private DispatchingContentDirectory dispatchingContentDirectory;
-
     protected String rootTitle;
-    protected String rootId;
+    protected ProcessorType rootId;
 
     /**
      * Browses the root metadata for a type.
@@ -62,7 +55,7 @@ public abstract class UpnpContentProcessor<T extends Object, U extends Object> {
 
         int childCount = getAllItemsSize();
         container.setChildCount(childCount);
-        container.setParentID(DispatchingContentDirectory.CONTAINER_ID_ROOT);
+        container.setParentID(ProcessorType.ROOT.getKeyType());
         return container;
     }
 
@@ -121,36 +114,7 @@ public abstract class UpnpContentProcessor<T extends Object, U extends Object> {
         return new BrowseResult(new DIDLParser().generate(didl), count, totalMatches);
     }
 
-    public BrowseResult searchByName(String name,
-                                     long firstResult, long maxResults,
-                                     SortCriterion[] orderBy) {
-        DIDLContent didl = new DIDLContent();
 
-        Class clazz = (Class) ((ParameterizedType) getClass().getGenericSuperclass()).getActualTypeArguments()[0];
-
-        try {
-            List<MusicFolder> allFolders = getDispatchingContentDirectory().getMediaFolderService().getAllMusicFolders();
-            ParamSearchResult<T> result = getDispatcher().getSearchService().searchByName(name, Ints.saturatedCast(firstResult), Ints.saturatedCast(maxResults), allFolders, clazz);
-            List<T> selectedItems = result.getItems();
-            for (T item : selectedItems) {
-                addItem(didl, item);
-            }
-
-            return createBrowseResult(didl, didl.getCount(), result.getTotalHits());
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    public DispatchingContentDirectory getDispatchingContentDirectory() {
-        return dispatchingContentDirectory;
-    }
-    public void setDispatchingContentDirectory(DispatchingContentDirectory dispatchingContentDirectory) {
-        this.dispatchingContentDirectory = dispatchingContentDirectory;
-    }
-    public DispatchingContentDirectory getDispatcher() {
-        return getDispatchingContentDirectory();
-    }
 
     public void addItem(DIDLContent didl, T item) {
         didl.addContainer(createContainer(item));
@@ -178,10 +142,9 @@ public abstract class UpnpContentProcessor<T extends Object, U extends Object> {
         this.rootTitle = rootTitle;
     }
     public String getRootId() {
-        return rootId;
+        return rootId.getKeyType();
     }
-    public void setRootId(String rootId) {
+    public void setRootId(ProcessorType rootId) {
         this.rootId = rootId;
     }
 }
-

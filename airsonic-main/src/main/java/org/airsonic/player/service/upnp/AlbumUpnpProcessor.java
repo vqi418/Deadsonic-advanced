@@ -14,6 +14,7 @@
   You should have received a copy of the GNU General Public License
   along with Airsonic.  If not, see <http://www.gnu.org/licenses/>.
 
+  Copyright 2024 (C) Y.Tory
   Copyright 2017 (C) Airsonic Authors
   Based upon Subsonic, Copyright 2009 (C) Sindre Mehus
 */
@@ -21,12 +22,12 @@ package org.airsonic.player.service.upnp;
 
 import com.google.common.primitives.Ints;
 import org.airsonic.player.domain.Album;
-import org.airsonic.player.domain.CoverArtScheme;
 import org.airsonic.player.domain.MediaFile;
 import org.airsonic.player.domain.MusicFolder;
-import org.airsonic.player.domain.User;
+import org.airsonic.player.domain.ParamSearchResult;
 import org.airsonic.player.service.AlbumService;
 import org.airsonic.player.service.MediaFileService;
+import org.airsonic.player.service.MediaFolderService;
 import org.airsonic.player.service.SearchService;
 import org.fourthline.cling.support.model.BrowseResult;
 import org.fourthline.cling.support.model.DIDLContent;
@@ -36,7 +37,6 @@ import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.container.MusicAlbum;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
 import java.util.ArrayList;
@@ -61,8 +61,17 @@ public class AlbumUpnpProcessor extends UpnpContentProcessor <Album, MediaFile> 
     @Autowired
     private MediaFileService mediaFileService;
 
+    @Autowired
+    private MediaFolderService mediaFolderService;
+
+    @Autowired
+    private UpnpProcessorRouter router;
+
+    @Autowired
+    private UpnpUtil upnpUtil;
+
     public AlbumUpnpProcessor() {
-        setRootId(DispatchingContentDirectory.CONTAINER_ID_ALBUM_PREFIX);
+        setRootId(ProcessorType.ALBUM);
         setRootTitle("Albums");
     }
 
@@ -73,7 +82,7 @@ public class AlbumUpnpProcessor extends UpnpContentProcessor <Album, MediaFile> 
     public BrowseResult browseRoot(String filter, long firstResult, long maxResults, SortCriterion[] orderBy) throws Exception {
         DIDLContent didl = new DIDLContent();
 
-        List<MusicFolder> allFolders = getDispatchingContentDirectory().getMediaFolderService().getAllMusicFolders();
+        List<MusicFolder> allFolders = mediaFolderService.getAllMusicFolders();
         List<Album> selectedItems = albumService.getAlphabeticalAlbums(Ints.saturatedCast(firstResult), Ints.saturatedCast(maxResults), false, true, allFolders);
         for (Album item : selectedItems) {
             addItem(didl, item);
@@ -89,7 +98,7 @@ public class AlbumUpnpProcessor extends UpnpContentProcessor <Album, MediaFile> 
             container.setId(getRootId() + DispatchingContentDirectory.SEPARATOR + album.getComment());
         } else {
             container.setId(getRootId() + DispatchingContentDirectory.SEPARATOR + album.getId());
-            container.setAlbumArtURIs(new URI[] { getAlbumArtURI(album.getId()) });
+            container.setAlbumArtURIs(new URI[] { upnpUtil.getAlbumArtURI(album.getId()) });
             container.setDescription(album.getComment());
         }
         container.setParentID(getRootId());
@@ -103,7 +112,7 @@ public class AlbumUpnpProcessor extends UpnpContentProcessor <Album, MediaFile> 
 
     @Override
     public List<Album> getAllItems() {
-        List<MusicFolder> allFolders = getDispatchingContentDirectory().getMediaFolderService().getAllMusicFolders();
+        List<MusicFolder> allFolders = mediaFolderService.getAllMusicFolders();
         return albumService.getAlphabeticalAlbums(false, true, allFolders);
     }
 
@@ -126,10 +135,10 @@ public class AlbumUpnpProcessor extends UpnpContentProcessor <Album, MediaFile> 
         if (album.getId() == -1) {
             List<Album> albumList = null;
             if (album.getComment().startsWith(ALL_BY_ARTIST)) {
-                ArtistUpnpProcessor ap = getDispatcher().getArtistProcessor();
+                ArtistUpnpProcessor ap = router.getArtistProcessor();
                 albumList = ap.getChildren(ap.getItemById(album.getComment().replaceAll(ALL_BY_ARTIST + "_", "")));
             } else if (album.getComment().equalsIgnoreCase(ALL_RECENT)) {
-                albumList = getDispatcher().getRecentAlbumProcessor().getAllItems();
+                albumList = router.getRecentProcessor().getAllItems();
             } else {
                 albumList = new ArrayList<>();
             }
@@ -146,31 +155,36 @@ public class AlbumUpnpProcessor extends UpnpContentProcessor <Album, MediaFile> 
 
     @Override
     public int getAllItemsSize() {
-        List<MusicFolder> allFolders = getDispatchingContentDirectory().getMediaFolderService().getAllMusicFolders();
+        List<MusicFolder> allFolders = mediaFolderService.getAllMusicFolders();
         return albumService.getAlbumCount(allFolders);
     }
 
 
     @Override
     public void addChild(DIDLContent didl, MediaFile child) {
-        didl.addItem(getDispatcher().getMediaFileProcessor().createItem(child));
-    }
-
-    public URI getAlbumArtURI(int albumId) {
-        return UriComponentsBuilder
-                .fromUriString(getDispatcher().getBaseUrl())
-                .uriComponents(getDispatcher().getJwtSecurityService()
-                        .addJWTToken(
-                                User.USERNAME_ANONYMOUS,
-                                UriComponentsBuilder.fromUriString("ext/coverArt.view")
-                                        .queryParam("id", albumId)
-                                        .queryParam("size", CoverArtScheme.LARGE.getSize()))
-                        .build())
-                .build().encode().toUri();
+        didl.addItem(router.getMediaFileProcessor().createItem(child));
     }
 
     public PersonWithRole[] getAlbumArtists(String artist) {
         return new PersonWithRole[] { new PersonWithRole(artist) };
+    }
+
+    public BrowseResult searchByName(String name,
+                                     long firstResult, long maxResults,
+                                     SortCriterion[] orderBy) {
+        DIDLContent didl = new DIDLContent();
+        try {
+            List<MusicFolder> allFolders = mediaFolderService.getAllMusicFolders();
+            ParamSearchResult<Album> result = searchService.searchByName(name, Ints.saturatedCast(firstResult), Ints.saturatedCast(maxResults), allFolders, Album.class);
+            List<Album> selectedItems = result.getItems();
+            for (Album item : selectedItems) {
+                addItem(didl, item);
+            }
+
+            return createBrowseResult(didl, didl.getCount(), result.getTotalHits());
+        } catch (Exception e) {
+            return null;
+        }
     }
 
 

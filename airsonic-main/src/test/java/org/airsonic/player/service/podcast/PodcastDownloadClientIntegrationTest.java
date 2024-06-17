@@ -13,9 +13,13 @@ import org.airsonic.player.repository.PodcastEpisodeRepository;
 import org.airsonic.player.service.MediaFolderService;
 import org.airsonic.player.service.VersionService;
 import org.apache.http.HttpEntity;
+import org.apache.http.ProtocolVersion;
+import org.apache.http.StatusLine;
 import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.http.message.BasicStatusLine;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,7 +36,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ContextConfiguration;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -152,8 +155,10 @@ public class PodcastDownloadClientIntegrationTest {
                 Mockito.CALLS_REAL_METHODS)) {
             mockedHttpClients.when(() -> HttpClients.createDefault()).thenReturn(mockedHttpClient);
             when(mockedHttpClient.execute(any())).thenReturn(mockedHttpResponse);
-            when(mockedHttpResponse.getEntity()).thenReturn(mockedHttpEntity);
-            when(mockedHttpEntity.getContent()).thenReturn(new ByteArrayInputStream("non mp3 data".getBytes()));
+            HttpEntity httpEntity = new ByteArrayEntity("non mp3 data".getBytes());
+            StatusLine statusLine = new BasicStatusLine(new ProtocolVersion("HTTP", 1, 1), 200, "test");
+            when(mockedHttpResponse.getEntity()).thenReturn(httpEntity);
+            when(mockedHttpResponse.getStatusLine()).thenReturn(statusLine);
             podcastDownloadClient.downloadEpisode(podcastEpisode.getId()).join();
         }
         PodcastEpisode episode = podcastEpisodeRepository.findById(podcastEpisode.getId()).orElse(null);

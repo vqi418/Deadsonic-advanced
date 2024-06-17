@@ -14,6 +14,7 @@
   You should have received a copy of the GNU General Public License
   along with Airsonic.  If not, see <http://www.gnu.org/licenses/>.
 
+  Copyright 2024 (C) Y.Tory
   Copyright 2017 (C) Airsonic Authors
   Based upon Subsonic, Copyright 2009 (C) Sindre Mehus
 */
@@ -39,8 +40,11 @@ public class PlaylistUpnpProcessor extends UpnpContentProcessor <Playlist, Media
     @Autowired
     private PlaylistService playlistService;
 
+    @Autowired
+    private UpnpProcessorRouter router;
+
     public PlaylistUpnpProcessor() {
-        setRootId(DispatchingContentDirectory.CONTAINER_ID_PLAYLIST_PREFIX);
+        setRootId(ProcessorType.PLAYLIST);
         setRootTitle("Playlists");
     }
 
@@ -50,32 +54,25 @@ public class PlaylistUpnpProcessor extends UpnpContentProcessor <Playlist, Media
         container.setParentID(getRootId());
         container.setTitle(item.getName());
         container.setDescription(item.getComment());
-        container.setChildCount(getPlaylistService().getFilesInPlaylist(item.getId()).size());
+        container.setChildCount(playlistService.getFilesInPlaylist(item.getId()).size());
 
         return container;
     }
 
     public List<Playlist> getAllItems() {
-        return getPlaylistService().getAllPlaylists();
+        return playlistService.getAllPlaylists();
     }
 
     public Playlist getItemById(String id) {
-        return getDispatcher().getPlaylistService().getPlaylist(Integer.parseInt(id));
+        return playlistService.getPlaylist(Integer.parseInt(id));
     }
 
     public List<MediaFile> getChildren(Playlist item) {
-        return getPlaylistService().getFilesInPlaylist(item.getId());
+        return playlistService.getFilesInPlaylist(item.getId());
     }
 
     public void addChild(DIDLContent didl, MediaFile child) {
-        didl.addItem(getDispatchingContentDirectory().createItem(child));
-    }
-
-    public PlaylistService getPlaylistService() {
-        return this.playlistService;
-    }
-    public void setPlaylistService(PlaylistService playlistService) {
-        this.playlistService = playlistService;
+        didl.addItem(router.getMediaFileProcessor().createItem(child));
     }
 
 }

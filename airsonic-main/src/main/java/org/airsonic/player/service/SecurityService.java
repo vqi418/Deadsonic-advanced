@@ -52,6 +52,7 @@ import org.springframework.security.web.servletapi.SecurityContextHolderAwareReq
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.annotation.Nullable;
 import jakarta.servlet.http.HttpServletRequest;
 
 import java.io.IOException;
@@ -307,7 +308,6 @@ public class SecurityService implements UserDetailsService {
         return userRepository.findByUsername(username).map(user -> {
             return userCredentialRepository.findByUserAndAppIn(user, List.of(apps));
         }).orElseGet(() -> {
-            LOG.warn("Can't get credentials for a non-existent user {}", username);
             return Collections.emptyList();
         });
     }
@@ -420,7 +420,8 @@ public class SecurityService implements UserDetailsService {
      * @param username The username used when logging in.
      * @return The user, or <code>null</code> if not found.
      */
-    public User getUserByName(String username) {
+    @Nullable
+    public User getUserByName(@Nullable String username) {
         return getUserByName(username, true);
     }
 

@@ -114,12 +114,13 @@ public class StreamController {
             @RequestParam(required = false, name = "offsetSeconds") Double offsetSeconds,
             ServletWebRequest swr) throws Exception {
 
-        User user = securityService.getCurrentUser(swr.getRequest());
+        String username = securityService.getCurrentUsername(swr.getRequest());
+        User user = securityService.getUserByName(username);
         if (!(authentication instanceof JWTAuthenticationToken) && !user.isStreamRole()) {
-            throw new AccessDeniedException("Streaming is forbidden for user " + user.getUsername());
+            throw new AccessDeniedException("Streaming is forbidden for user " + username);
         }
 
-        Player player = playerService.getPlayer(swr.getRequest(), swr.getResponse(), user.getUsername(), false, true);
+        Player player = playerService.getPlayer(swr.getRequest(), swr.getResponse(), username, false, true);
 
         Long expectedSize = null;
 
@@ -154,8 +155,8 @@ public class StreamController {
         if (isSingleFile) {
 
             if (!(authentication instanceof JWTAuthenticationToken)
-                    && !securityService.isFolderAccessAllowed(file, user.getUsername())) {
-                throw new AccessDeniedException("Access to file " + file.getId() + " is forbidden for user " + user.getUsername());
+                    && !securityService.isFolderAccessAllowed(file, username)) {
+                throw new AccessDeniedException("Access to file " + file.getId() + " is forbidden for user " + username);
             }
 
             // Update the index of the currently playing media file. At

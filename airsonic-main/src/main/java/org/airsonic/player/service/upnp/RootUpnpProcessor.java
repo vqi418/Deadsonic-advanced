@@ -41,9 +41,12 @@ public class RootUpnpProcessor extends UpnpContentProcessor <Container, Containe
     @Autowired
     IndexManager indexManager;
 
+    @Autowired
+    private UpnpProcessorRouter router;
+
     public Container createRootContainer() {
         StorageFolder root = new StorageFolder();
-        root.setId(DispatchingContentDirectory.CONTAINER_ID_ROOT);
+        root.setId(ProcessorType.ROOT.getKeyType());
         root.setParentID("-1");
 
         // MediaLibraryStatistics statistics = indexManager.getStatistics();
@@ -67,12 +70,12 @@ public class RootUpnpProcessor extends UpnpContentProcessor <Container, Containe
 
     public List<Container> getAllItems() throws Exception {
         ArrayList<Container> allItems = new ArrayList<Container>();
-        allItems.add(getDispatchingContentDirectory().getAlbumProcessor().createRootContainer());
-        allItems.add(getDispatchingContentDirectory().getArtistProcessor().createRootContainer());
-        allItems.add(getDispatchingContentDirectory().getMediaFileProcessor().createRootContainer());
-        allItems.add(getDispatchingContentDirectory().getGenreProcessor().createRootContainer());
-        allItems.add(getDispatchingContentDirectory().getPlaylistProcessor().createRootContainer());
-        allItems.add(getDispatchingContentDirectory().getRecentAlbumProcessor().createRootContainer());
+        allItems.add(router.getAlbumProcessor().createRootContainer());
+        allItems.add(router.getArtistProcessor().createRootContainer());
+        allItems.add(router.getMediaFileProcessor().createRootContainer());
+        allItems.add(router.getGenreProcessor().createRootContainer());
+        allItems.add(router.getPlaylistProcessor().createRootContainer());
+        allItems.add(router.getRecentProcessor().createRootContainer());
         return allItems;
     }
 

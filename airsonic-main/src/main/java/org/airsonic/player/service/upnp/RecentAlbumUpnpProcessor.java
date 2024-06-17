@@ -14,6 +14,7 @@
   You should have received a copy of the GNU General Public License
   along with Airsonic.  If not, see <http://www.gnu.org/licenses/>.
 
+  Copyright 2024 (C) Y.Tory
   Copyright 2017 (C) Airsonic Authors
   Based upon Subsonic, Copyright 2009 (C) Sindre Mehus
 */
@@ -21,6 +22,7 @@ package org.airsonic.player.service.upnp;
 import org.airsonic.player.domain.Album;
 import org.airsonic.player.domain.MusicFolder;
 import org.airsonic.player.service.AlbumService;
+import org.airsonic.player.service.MediaFolderService;
 import org.airsonic.player.util.Util;
 import org.fourthline.cling.support.model.BrowseResult;
 import org.fourthline.cling.support.model.DIDLContent;
@@ -41,8 +43,11 @@ public class RecentAlbumUpnpProcessor extends AlbumUpnpProcessor {
     @Autowired
     private AlbumService albumService;
 
+    @Autowired
+    private MediaFolderService mediaFolderService;
+
     public RecentAlbumUpnpProcessor() {
-        setRootId(DispatchingContentDirectory.CONTAINER_ID_RECENT_PREFIX);
+        setRootId(ProcessorType.RECENT);
         setRootTitle("RecentAlbums");
     }
 
@@ -71,7 +76,7 @@ public class RecentAlbumUpnpProcessor extends AlbumUpnpProcessor {
 
     @Override
     public List<Album> getAllItems() {
-        List<MusicFolder> allFolders = getDispatchingContentDirectory().getMediaFolderService().getAllMusicFolders();
+        List<MusicFolder> allFolders = mediaFolderService.getAllMusicFolders();
         List<Album> recentAlbums = albumService.getRecentlyAddedAlbums(0, RECENT_COUNT, allFolders);
         if (recentAlbums.size() > 1) {
             // if there is more than one recent album, add in an option to
@@ -87,7 +92,7 @@ public class RecentAlbumUpnpProcessor extends AlbumUpnpProcessor {
 
     @Override
     public int getAllItemsSize() {
-        List<MusicFolder> allFolders = getDispatchingContentDirectory().getMediaFolderService().getAllMusicFolders();
+        List<MusicFolder> allFolders = mediaFolderService.getAllMusicFolders();
         int allAlbumCount = albumService.getAlbumCount(allFolders);
         return Math.min(allAlbumCount, RECENT_COUNT);
     }
