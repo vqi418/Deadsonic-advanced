@@ -402,13 +402,17 @@ public class Player {
      */
     public void setTranscodings(List<Transcoding> transcodings) {
         this.transcodings = transcodings;
+        for (Transcoding transcoding : transcodings) {
+            transcoding.addPlayer(this);
+        }
     }
 
     /**
      * Adds a transcoding to the player.
      */
     public void addTranscoding(Transcoding transcoding) {
-        transcodings.add(transcoding);
+        transcoding.addPlayer(this);
+        this.transcodings.add(transcoding);
     }
 
     /**

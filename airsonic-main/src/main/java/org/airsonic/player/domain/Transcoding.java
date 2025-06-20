@@ -22,6 +22,7 @@ package org.airsonic.player.domain;
 
 import org.airsonic.player.util.StringUtil;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -72,7 +73,7 @@ public class Transcoding {
     @Column(name = "default_active", nullable = false)
     private boolean defaultActive;
 
-    @ManyToMany(mappedBy = "transcodings")
+    @ManyToMany(mappedBy = "transcodings", cascade = {CascadeType.REMOVE, CascadeType.MERGE})
     private List<Player> players = new ArrayList<>();
 
     public Transcoding() {
