@@ -22,11 +22,11 @@ jobs:
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
-          java-version: 17
+          java-version: 21
           distribution: 'temurin'
       - name: Setup ffmpeg
-        uses: FedericoCarboni/setup-ffmpeg@v3
         id: setup-ffmpeg 
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Cache Maven packages
         uses: actions/cache@v4
         with:
@@ -82,7 +82,7 @@ jobs:
         with:
           file: install/docker/Dockerfile
           context: install/docker
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          platforms: linux/amd64,linux/arm64,linux/arm64/v8
           push: true
           tags: |
             ghcr.io/kagemomiji/airsonic-advanced:latest
