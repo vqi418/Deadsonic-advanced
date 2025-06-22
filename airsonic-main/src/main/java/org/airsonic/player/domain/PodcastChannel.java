@@ -65,12 +65,17 @@ public class PodcastChannel implements Serializable {
     @JoinColumn(name = "media_file_id")
     private MediaFile mediaFile;
 
-    @OneToMany(mappedBy = "channel")
+    @OneToMany(mappedBy = "channel", cascade = {CascadeType.REMOVE, CascadeType.PERSIST, CascadeType.MERGE}, orphanRemoval = true)
     private List<PodcastEpisode> episodes = new ArrayList<>();
 
     @JsonIgnore
     public List<PodcastEpisode> getEpisodes() {
         return episodes;
+    }
+
+    public void addEpisode(PodcastEpisode episode) {
+        episodes.add(episode);
+        episode.setChannel(this);
     }
 
     public PodcastChannel() {

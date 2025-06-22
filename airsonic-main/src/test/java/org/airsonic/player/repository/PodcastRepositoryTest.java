@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -251,26 +252,35 @@ public class PodcastRepositoryTest {
         assertEquals(0, podcastEpisodeRepository.findByChannel(channel).size());
     }
 
-
     @Test
     public void testCascadingDelete() {
         PodcastChannel channel = createChannel();
+        System.out.println("Channel ID: " + channel.getId());
         PodcastEpisode episode = new PodcastEpisode(null, channel, UUID.randomUUID().toString(), "http://bar", null, null, null,
                 null, null, null, null, PodcastStatus.NEW, null);
-        podcastEpisodeRepository.saveAndFlush(episode);
-        PodcastEpisode episode2 = new PodcastEpisode(null, channel, UUID.randomUUID().toString(), "http://bar", null, null, null,
+        PodcastEpisode episode2 = new PodcastEpisode(null, channel, UUID.randomUUID().toString(), "http://bar2", null, null, null,
             null, null, null, null, PodcastStatus.NEW, null);
-        podcastEpisodeRepository.saveAndFlush(episode2);
-        channel = podcastChannelRepository.findById(channel.getId()).get();
-        assertEquals(2, podcastEpisodeRepository.findByChannel(channel).size());
+        channel.addEpisode(episode2);
+        channel.addEpisode(episode);
+        podcastChannelRepository.saveAndFlush(channel);
 
+        Integer channelId = channel.getId();
+        assertEquals(2, podcastEpisodeRepository.findByChannel(channel).size());
+        List<Integer> episodeIds = podcastEpisodeRepository.findByChannel(channel).stream()
+                .map(PodcastEpisode::getId).toList();
+
+        // deleting channel (should cascade dele episodes)
         podcastChannelRepository.delete(channel);
-        assertEquals(0, podcastEpisodeRepository.findByChannel(channel).size());
+
+        assertFalse(podcastChannelRepository.existsById(channelId));
+        for (Integer episodeId : episodeIds) {
+            assertFalse(podcastEpisodeRepository.existsById(episodeId), "Episode with ID " + episodeId + " should be deleted");
+        }
     }
 
     private PodcastChannel createChannel() {
         PodcastChannel channel = new PodcastChannel("http://foo");
-        podcastChannelRepository.save(channel);
+        podcastChannelRepository.saveAndFlush(channel);
         return channel;
     }
 
