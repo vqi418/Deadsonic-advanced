@@ -41,7 +41,7 @@
                     <label><input type="radio" th:name="|expireIn[${share.id}]|" value="0"><span th:text="#{sharesettings.expirein.never}"></span></label>
                 </td>
                 <td style="padding-left:1em" align="center">
-                    <input type="checkbox" name="delete[${share.id}]"/>
+                    <input type="checkbox" th:name="|delete[${share.id}]|"/>
                 </td>
             </tr>
         </th:block>
