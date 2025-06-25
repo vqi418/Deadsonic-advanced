@@ -42,7 +42,7 @@ public class PodcastEpisode {
     @JoinColumn(name = "media_file_id", referencedColumnName = "id")
     private MediaFile mediaFile;
 
-    @ManyToOne
+    @ManyToOne()
     @JoinColumn(name = "channel_id", referencedColumnName = "id")
     private PodcastChannel channel;
 
@@ -225,18 +225,20 @@ public class PodcastEpisode {
 
     @Override
     public int hashCode() {
-        return Objects.hash(url);
+        return Objects.hash(url, episodeGuid, channel);
     }
 
     @Override
     public boolean equals(Object obj) {
-
-        if (obj == null || !(obj instanceof PodcastEpisode)) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (!(obj instanceof PodcastEpisode)) {
             return false;
         }
-
         PodcastEpisode other = (PodcastEpisode) obj;
-        return Objects.equals(url, other.url);
+        return Objects.equals(channel, other.channel)
+                && Objects.equals(episodeGuid, other.episodeGuid)
+                && Objects.equals(url, other.url);
     }
 
 }
