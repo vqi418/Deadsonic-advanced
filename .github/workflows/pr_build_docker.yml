@@ -75,7 +75,7 @@ jobs:
           context: install/docker
           platforms: ${{matrix.cfg.platforms}}
           build-args: |
-            IMAGE_DOCKER_VERSION=${{matrix.cfg.docker_version}}
+            IMAGE_JAVA_VERSION=${{matrix.cfg.docker_version}}
           push: true
           tags: |
             ghcr.io/kagemomiji/airsonic-advanced:pr-${{ github.event.pull_request.number }}
