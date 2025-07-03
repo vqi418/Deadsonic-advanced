@@ -76,7 +76,7 @@ jobs:
         with:
           file: install/docker/Dockerfile
           context: install/docker
-          platforms: ${{matrix.cfg.platforms}}
+          platforms: ${{matrix.cfg.platform}}
           build-args: |
             IMAGE_JAVA_VERSION=${{matrix.cfg.docker_version}}
           labels: ${{steps.docker-meta.outputs.labels}}
