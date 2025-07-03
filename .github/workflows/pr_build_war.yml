@@ -16,7 +16,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    if: github.repository == github.event.pull_request.head.repo.full_name && contains(github.event.pull_request.labels.*.name, 'safe to test')
+    if: github.repository == github.event.pull_request.head.repo.full_name
     steps:
     - uses: actions/checkout@v4
       with:
