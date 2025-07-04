@@ -53,6 +53,13 @@ jobs:
           images: ${{ env.REGISTRY_IMAGE }}
           tags: |
             pr-${{ github.event.pull_request.number }}
+      - name: Cache Maven packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
         with:
@@ -129,4 +136,3 @@ jobs:
       - name: Inspect Image
         run: |
           docker buildx imagetools inspect ${{ env.REGISTRY_IMAGE }}:pr-${{ github.event.pull_request.number }}
-
