@@ -149,7 +149,7 @@ jobs:
       - name: Download digest
         uses: actions/download-artifact@v4
         with:
-          name: docker-digest-*
+          pattern: docker-digest-*
           path: /tmp/digests
           merge-multiple: true
       - name: Download war
